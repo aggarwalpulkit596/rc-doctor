@@ -1,0 +1,14 @@
+{
+  "name": "rc-doctor",
+  "displayName": "rc-doctor",
+  "description": "Check a RevenueCat integration against the app's code and its RevenueCat project, and fix what can be fixed safely.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "keywords": ["revenuecat", "subscriptions", "iap", "in-app-purchases", "lint", "android", "ios", "kotlin-multiplatform"],
+  "author": {
+    "name": "Pulkit Aggarwal",
+    "url": "https://github.com/aggarwalpulkit596"
+  },
+  "homepage": "https://github.com/aggarwalpulkit596/rc-doctor",
+  "repository": "https://github.com/aggarwalpulkit596/rc-doctor"
+}
