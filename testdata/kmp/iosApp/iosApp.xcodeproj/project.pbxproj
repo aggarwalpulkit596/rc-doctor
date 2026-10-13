@@ -1,0 +1,11 @@
+// !$*UTF8*$!
+{
+	objects = {
+		A20000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.kmp.ios;
+			};
+		};
+	};
+}

@@ -1,0 +1,8 @@
+{
+  "entitlements": ["premium"],
+  "offerings": ["default"],
+  "apps": [
+    {"id": "app_android", "platform": "android", "app_id": "com.example.kmp", "public_keys": ["goog_KmpAndroidKey12345678"]},
+    {"id": "app_ios", "platform": "ios", "app_id": "com.example.kmp.ios", "public_keys": ["appl_KmpIosKey123456789012"]}
+  ]
+}

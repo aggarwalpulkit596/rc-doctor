@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: RevenueCat SDK questions
+    url: https://community.revenuecat.com
+    about: rc-doctor is independent. Questions about RevenueCat itself belong in the RevenueCat community.

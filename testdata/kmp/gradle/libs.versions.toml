@@ -1,0 +1,5 @@
+[versions]
+purchases-kmp = "2.1.0+16.2.0"
+
+[libraries]
+purchases-core = { module = "com.revenuecat.purchases:purchases-kmp-core", version.ref = "purchases-kmp" }
