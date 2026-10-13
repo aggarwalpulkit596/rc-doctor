@@ -1,19 +1,16 @@
 Releasing
 =========
 
-1. Move the entries in `CHANGELOG.latest.md` to the top of `CHANGELOG.md` under the new version, using the
-   existing sections (✨ New Features, 🐞 Bugfixes, 🔄 Other Changes). Call out any change to command flags or
-   JSON/SARIF output.
-2. Set `.version` to the new version and open a `chore(release): X.Y.Z` pull request.
-3. After it merges, tag the commit `vX.Y.Z` and push the tag. `go install github.com/aggarwalpulkit596/rc-doctor/cmd/rc-doctor@vX.Y.Z`
-   then reports that version.
-4. To attach binaries to the GitHub release, build each target with the version stamped in:
+1. In `CHANGELOG.latest.md`, replace `## Unreleased` with the new version, keeping the sections (✨ New Features,
+   🐞 Bugfixes, 🔄 Other Changes). Call out any change to command flags, exit codes, or the JSON or SARIF output.
+   Copy the whole entry to the top of `CHANGELOG.md`.
+2. Set `.version` to the new version and open a `chore(release): X.Y.Z` pull request labeled `pr:other`.
+3. After it merges, tag the merge commit `vX.Y.Z` and push the tag. The release workflow
+   (`.github/workflows/release.yml`) checks that the tag matches `.version`, builds archives for macOS, Linux and
+   Windows (amd64 and arm64) with GoReleaser, signs `checksums.txt` with cosign (keyless, from the workflow's
+   GitHub identity), and publishes the GitHub release with `CHANGELOG.latest.md` as its notes.
+   `go install github.com/aggarwalpulkit596/rc-doctor/cmd/rc-doctor@vX.Y.Z` then reports that version.
+4. Reset `CHANGELOG.latest.md` to `## Unreleased` in the next pull request.
 
-   ```bash
-   V=$(cat .version)
-   for t in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64; do
-     CGO_ENABLED=0 GOOS=${t%/*} GOARCH=${t#*/} go build -trimpath \
-       -ldflags "-s -w -X github.com/aggarwalpulkit596/rc-doctor/internal/buildinfo.Version=v$V" \
-       -o dist/rc-doctor-$V-${t%/*}-${t#*/} ./cmd/rc-doctor
-   done
-   ```
+To check the archives before tagging, run `make snapshot`: it builds every target into `dist/` without
+publishing anything.
