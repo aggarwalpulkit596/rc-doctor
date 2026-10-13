@@ -18,7 +18,7 @@ func (r recorder) Name() string    { return r.name }
 func (r recorder) Summary() string { return "fake " + r.name }
 func (r recorder) Run(_ context.Context, args []string, stdout, _ io.Writer) int {
 	*r.got = append([]string{r.name}, args...)
-	io.WriteString(stdout, "ran "+r.name)
+	_, _ = io.WriteString(stdout, "ran "+r.name)
 	return 7
 }
 

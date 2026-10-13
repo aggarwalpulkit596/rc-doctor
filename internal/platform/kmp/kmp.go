@@ -3,17 +3,22 @@
 //
 // One KMP repo ships two apps, so Collect returns two Facts, "android" and
 // "ios", and every rule checks each one as it would a native app:
-//   - androidMain belongs to Android; iosMain, appleMain and friends, and the
-//     Xcode wrapper's Swift code, belong to iOS;
-//   - commonMain and config files are shared. Their entitlement and offering
-//     IDs go to both apps (the engine reports a shared line once), and each
-//     key goes to the app its own name or prefix points at, so
+//   - androidMain (and the other android* source sets, and the Android app
+//     module's src/main) belongs to Android; iosMain, appleMain, nativeMain
+//     and friends, and the Xcode wrapper's Swift code, belong to iOS;
+//   - commonMain, intermediate sets such as mobileMain, and config files are
+//     shared. Their entitlement and offering IDs go to both apps (the engine
+//     reports a shared line once), and each key goes to the app its own name,
+//     the condition around it, or its prefix points at, so
 //     REVENUECAT_IOS_KEY=appl_... in secrets.properties is the iOS app's key
-//     even though the Android build reads that file.
+//     even though the Android build reads that file;
+//   - JVM, web and desktop source sets, and JVM-only Gradle modules such as a
+//     Ktor server, belong to neither app.
 package kmp
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/aggarwalpulkit596/rc-doctor/internal/model"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/platform"
@@ -34,10 +39,6 @@ var (
 	// Test source sets and test targets, on both sides.
 	exclude = regexp.MustCompile(`(^|/)((?:test|androidTest)(?:[A-Z]\w*)?|[a-z]\w*Test|\w*Tests)(/|$)`)
 
-	androidSets = regexp.MustCompile(`(^|/)android\w*Main/`)
-	appleSets   = regexp.MustCompile(`(^|/)(?:ios|apple|macos|tvos|watchos)\w*Main/`)
-	sharedSets  = regexp.MustCompile(`(^|/)common\w*Main/`)
-
 	// The RevenueCat KMP SDK spells offering lookup like the native SDKs.
 	kotlinSet = scan.Patterns{
 		Extensions:        []string{".kt"},
@@ -48,6 +49,9 @@ var (
 		EntitlementIdents: scan.EntitlementIdents,
 		OfferingIdents:    scan.OfferingIdents,
 		KeyIdents:         scan.KeyIdents,
+		AppUserIDs:        scan.AppUserIDLiterals,
+		AppUserIDIdents:   scan.AppUserIDIdents,
+		Signals:           scan.WithSignals(model.SignalFinishesPurchase, android.FinishesPurchase),
 	}
 	swiftSet = scan.Patterns{
 		Extensions:        []string{".swift", ".m"},
@@ -58,6 +62,9 @@ var (
 		EntitlementIdents: scan.EntitlementIdents,
 		OfferingIdents:    scan.OfferingIdents,
 		KeyIdents:         scan.KeyIdents,
+		AppUserIDs:        scan.AppUserIDLiterals,
+		AppUserIDIdents:   scan.AppUserIDIdents,
+		Signals:           scan.WithSignals(model.SignalFinishesPurchase, ios.FinishesPurchase),
 	}
 	configSet = scan.Patterns{
 		Extensions: []string{".gradle", ".gradle.kts", ".properties", ".xcconfig", ".plist", ".xml"},
@@ -81,24 +88,26 @@ func (KMP) Supersedes() []string { return []string{"android", "ios"} }
 func (KMP) Detect(root string) bool { return scan.Contains(root, buildFiles, sdkModule) }
 
 func (KMP) Collect(root string) ([]model.Facts, error) {
+	// A JVM server or tool next to the app isn't part of it.
+	exclude := scan.ExcludeDirs(exclude, scan.JVMModules(root, exclude))
 	consts := scan.Constants(root, exclude)
 	scanWith := func(sets ...scan.Patterns) (scan.Result, error) {
 		return scan.Source(root, scan.Spec{Sets: sets, Exclude: exclude, Constants: consts})
 	}
-	only := func(p scan.Patterns, include *regexp.Regexp) scan.Patterns {
+	only := func(p scan.Patterns, include side) scan.Patterns {
 		p.Include = include
 		return p
 	}
 
-	droid, err := scanWith(only(kotlinSet, androidSets))
+	droid, err := scanWith(only(kotlinSet, androidSide))
 	if err != nil {
 		return nil, err
 	}
-	apple, err := scanWith(only(kotlinSet, appleSets), swiftSet)
+	apple, err := scanWith(only(kotlinSet, appleSide), swiftSet)
 	if err != nil {
 		return nil, err
 	}
-	shared, err := scanWith(only(kotlinSet, sharedSets), configSet)
+	shared, err := scanWith(only(kotlinSet, sharedSide), configSet)
 	if err != nil {
 		return nil, err
 	}
@@ -112,9 +121,18 @@ func (KMP) Collect(root string) ([]model.Facts, error) {
 		part.f.ConfigureAt = append(part.f.ConfigureAt, part.src.ConfigureAt...)
 		part.f.Entitlements = append(part.f.Entitlements, part.src.Entitlements...)
 		part.f.Offerings = append(part.f.Offerings, part.src.Offerings...)
+		part.f.AppUserIDs = append(part.f.AppUserIDs, part.src.AppUserIDs...)
+		for name, locs := range part.src.Signals {
+			if part.f.Signals == nil {
+				part.f.Signals = map[string][]model.Location{}
+			}
+			part.f.Signals[name] = append(part.f.Signals[name], locs...)
+		}
 	}
-	a.APIKeys = droid.APIKeys
-	i.APIKeys = apple.APIKeys
+	// A key whose condition names the other platform is dead code in this
+	// source set: if (platform is Platform.Android) "goog_..." in iosMain.
+	a.APIKeys = droid.KeysNotFor("ios")
+	i.APIKeys = apple.KeysNotFor("android")
 	for n, k := range shared.APIKeys {
 		switch owner(shared.KeyHints[n], k.Value) {
 		case "android":
@@ -130,6 +148,7 @@ func (KMP) Collect(root string) ([]model.Facts, error) {
 	if m, ok := android.ApplicationID(root); ok {
 		a.AppID, a.AppIDAt = m.Value, m.Location
 	}
+	a.Build = android.BuildSettings(root, exclude, a.ConfigureAt)
 	if m, ok := ios.BundleID(root); ok {
 		i.AppID, i.AppIDAt = m.Value, m.Location
 	}
@@ -150,4 +169,54 @@ func owner(hint, key string) string {
 		}
 	}
 	return ""
+}
+
+// side is the app a KMP source set's code ends up in.
+type side string
+
+const (
+	androidSide side = "android"
+	appleSide   side = "apple"
+	sharedSide  side = "shared"
+)
+
+// sourceSet finds the source set in a path: the <set> of .../src/<set>/.
+var sourceSet = regexp.MustCompile(`(?:^|/)src/(\w+)/`)
+
+// MatchString reports whether the file at rel belongs to this side.
+func (s side) MatchString(rel string) bool {
+	m := sourceSet.FindStringSubmatch(rel)
+	return m != nil && sideOf(m[1]) == s
+}
+
+// sideOf maps a source set to the app that compiles it:
+//   - main (the Android app module) and every android* set (androidMain, a
+//     flavor's androidFull) go to Android;
+//   - ios*, apple*, macos*, tvos*, watchos* and native* sets go to iOS;
+//   - jvm*, js*, wasm*, desktop* and other non-mobile targets go nowhere: the
+//     RevenueCat KMP SDK doesn't run there;
+//   - any other *Main set is shared: commonMain, and intermediate sets such
+//     as mobileMain.
+func sideOf(set string) side {
+	lower := strings.ToLower(set)
+	switch {
+	case set == "main" || strings.HasPrefix(lower, "android"):
+		return androidSide
+	case hasAnyPrefix(lower, "ios", "apple", "macos", "tvos", "watchos", "native", "darwin"):
+		return appleSide
+	case hasAnyPrefix(lower, "jvm", "js", "wasm", "desktop", "linux", "mingw", "windows", "web", "server"):
+		return ""
+	case strings.HasSuffix(set, "Main"):
+		return sharedSide
+	}
+	return ""
+}
+
+func hasAnyPrefix(s string, prefixes ...string) bool {
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p) {
+			return true
+		}
+	}
+	return false
 }

@@ -30,7 +30,7 @@ type Patterns struct {
 	Extensions []string // matched as suffixes: ".kt", ".gradle.kts"
 	// Include, when set, limits the set to files whose root-relative path
 	// matches, such as one Kotlin Multiplatform source set.
-	Include *regexp.Regexp
+	Include Matcher
 
 	APIKey       []*regexp.Regexp // captures a key
 	Configure    []*regexp.Regexp // a match marks an SDK configure call site
@@ -45,6 +45,21 @@ type Patterns struct {
 	// KeyIdents capture an identifier passed as the API key. The resolved
 	// value is reported at its definition, where a fix belongs.
 	KeyIdents []*regexp.Regexp
+
+	// AppUserIDs capture a literal app user ID passed to the SDK.
+	// AppUserIDIdents capture an identifier passed instead; only
+	// SCREAMING_CASE constants are resolved, because a fixed value in a
+	// variable such as userId is far more likely a runtime value.
+	AppUserIDs      []*regexp.Regexp
+	AppUserIDIdents []*regexp.Regexp
+
+	// Signals map a model.Signal* name to the patterns that show it.
+	Signals map[string][]*regexp.Regexp
+}
+
+// Matcher decides whether a root-relative path is in scope. *regexp.Regexp is one.
+type Matcher interface {
+	MatchString(rel string) bool
 }
 
 // Spec is everything a platform scans for in one walk of the tree.
@@ -65,10 +80,15 @@ type Result struct {
 	APIKeys []model.APIKey
 	// KeyHints is parallel to APIKeys: the platform the key's line names
 	// ("ios" for REVENUECAT_IOS_KEY=...), or "" when it names none.
-	KeyHints     []string
+	KeyHints []string
+	// keyUses is parallel to APIKeys: the configure call that passes the key
+	// through a constant, or the zero Location for a key written in place.
+	keyUses      []model.Location
 	ConfigureAt  []model.Location
 	Entitlements []model.Ref
 	Offerings    []model.Ref
+	AppUserIDs   []model.Ref
+	Signals      map[string][]model.Location
 }
 
 // Source walks root once and applies each pattern set to the files it covers.
@@ -86,12 +106,23 @@ func Source(root string, spec Spec) (Result, error) {
 		}
 		return true
 	})
+	for i, k := range res.APIKeys {
+		debugOnly, platform := KeyGuards(root, k)
+		if use := res.keyUses[i]; use != (model.Location{}) && !debugOnly {
+			// The constant may be plain while the call that passes it is guarded.
+			debugOnly, _ = KeyGuards(root, model.APIKey{Location: use})
+		}
+		res.APIKeys[i].DebugOnly = debugOnly
+		if res.KeyHints[i] == "" {
+			res.KeyHints[i] = platform
+		}
+	}
 	return res, err
 }
 
 func needsConstants(spec Spec) bool {
 	for _, p := range spec.Sets {
-		if len(p.EntitlementIdents)+len(p.OfferingIdents)+len(p.KeyIdents) > 0 {
+		if len(p.EntitlementIdents)+len(p.OfferingIdents)+len(p.KeyIdents)+len(p.AppUserIDIdents) > 0 {
 			return true
 		}
 	}
@@ -195,12 +226,35 @@ func Contains(root string, names []string, substrs ...string) bool {
 func scanFile(path, rel string, p Patterns, consts ConstTable, res *Result) {
 	eachLine(path, func(n int, text string) {
 		loc := model.Location{File: rel, Line: n}
+		atConfigure := configureLine.MatchString(text)
 		for _, v := range captures(p.APIKey, text) {
-			res.addKey(model.APIKey{Value: v, Location: loc}, PlatformHint(strings.Replace(text, v, "", 1)))
+			res.addKey(model.APIKey{Value: v, Location: loc, Configured: atConfigure}, PlatformHint(strings.Replace(text, v, "", 1)), model.Location{})
 		}
 		for _, ident := range captures(p.KeyIdents, text) {
 			if def, ok := consts.Lookup(ident); ok {
-				res.addKey(model.APIKey{Value: def.Value, Location: def.Location}, PlatformHint(def.Name))
+				res.addKey(model.APIKey{Value: def.Value, Location: def.Location, Configured: true}, PlatformHint(def.Name), loc)
+			}
+		}
+		for _, v := range literalCaptures(p.AppUserIDs, text) {
+			res.AppUserIDs = append(res.AppUserIDs, model.Ref{ID: v, Location: loc})
+		}
+		for _, ident := range captures(p.AppUserIDIdents, text) {
+			if !screamingCase.MatchString(lastSegment(ident)) {
+				continue
+			}
+			if def, ok := consts.Lookup(ident); ok {
+				res.AppUserIDs = append(res.AppUserIDs, model.Ref{ID: def.Value, Location: loc, Def: &def.Definition})
+			}
+		}
+		for name, res2 := range p.Signals {
+			for _, re := range res2 {
+				if re.MatchString(text) {
+					if res.Signals == nil {
+						res.Signals = map[string][]model.Location{}
+					}
+					res.Signals[name] = append(res.Signals[name], loc)
+					break
+				}
 			}
 		}
 		for _, ident := range captures(p.EntitlementIdents, text) {
@@ -236,7 +290,7 @@ func eachLine(path string, fn func(n int, text string)) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read only
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	inBlock := false
@@ -257,12 +311,37 @@ func eachLine(path string, fn func(n int, text string)) {
 	}
 }
 
-// isLineComment recognises // and KDoc/Javadoc continuation lines, plus "# "
+// isLineComment recognizes // and KDoc/Javadoc continuation lines, plus "# "
 // comments in properties, TOML and Ruby files. A bare "#" followed by a word
 // is code in Swift (#if) and Objective-C (#define), so it is not a comment.
 func isLineComment(t string) bool {
 	return strings.HasPrefix(t, "//") || strings.HasPrefix(t, "*") ||
 		t == "#" || strings.HasPrefix(t, "# ") || strings.HasPrefix(t, "#\t") || strings.HasPrefix(t, "##")
+}
+
+var screamingCase = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+
+func lastSegment(ident string) string {
+	if i := strings.LastIndexByte(ident, '.'); i >= 0 {
+		return ident[i+1:]
+	}
+	return ident
+}
+
+// literalCaptures is captures, keeping empty values: an empty literal is a
+// finding in its own right (the SDK rejects an empty app user ID).
+func literalCaptures(res []*regexp.Regexp, text string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, re := range res {
+		for _, m := range re.FindAllStringSubmatch(text, -1) {
+			if len(m) > 1 && !seen[m[1]] {
+				seen[m[1]] = true
+				out = append(out, m[1])
+			}
+		}
+	}
+	return out
 }
 
 // captures returns the distinct first-group captures of res in text.
@@ -314,12 +393,23 @@ func (r Result) KeysNotFor(other string) []model.APIKey {
 
 // addKey records a key once per value and location: a constant's literal is
 // found both by the key patterns and through the configure call that uses it.
-func (r *Result) addKey(k model.APIKey, hint string) {
-	for _, seen := range r.APIKeys {
-		if seen == k {
+// use is that configure call, or the zero Location.
+func (r *Result) addKey(k model.APIKey, hint string, use model.Location) {
+	for i, seen := range r.APIKeys {
+		if seen.Value == k.Value && seen.Location == k.Location {
+			r.APIKeys[i].Configured = seen.Configured || k.Configured
+			if r.keyUses[i] == (model.Location{}) {
+				r.keyUses[i] = use
+			}
 			return
 		}
 	}
 	r.APIKeys = append(r.APIKeys, k)
 	r.KeyHints = append(r.KeyHints, hint)
+	r.keyUses = append(r.keyUses, use)
 }
+
+// configureLine matches a line of a configure call that a key written on it
+// is passed to: Purchases.configure(...), Configuration.Builder(...), or the
+// Swift withAPIKey: label of a call spread over several lines.
+var configureLine = regexp.MustCompile(`\bPurchases\.configure\s*\(|Configuration\.Builder\s*\(|\bwithAPIKey\s*:`)

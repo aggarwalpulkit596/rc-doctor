@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "tool": "rc-doctor",
+  "version": "v0.0.0-golden",
+  "root": "$REPO/testdata/android-legacy",
+  "apps": [
+    {
+      "platform": "android",
+      "app_id": "com.example.legacy"
+    }
+  ],
+  "dashboard": "snapshot:testdata/dashboard-legacy.json",
+  "summary": {
+    "error": 7,
+    "info": 0,
+    "warning": 3
+  },
+  "findings": [
+    {
+      "rule": "play-billing-desugaring",
+      "severity": "warning",
+      "platform": "android",
+      "file": "app/build.gradle",
+      "line": 12,
+      "message": "minSdk 21 without core library desugaring. The Play Billing Library in RevenueCat's Android SDK 8.10.8 and later uses Java 8 types that some devices below Android 7.0 (API 24) lack, and the app can crash there with NoClassDefFoundError.",
+      "fix": "Enable core library desugaring (isCoreLibraryDesugaringEnabled = true in compileOptions, plus the com.android.tools:desugar_jdk_libs dependency), or raise minSdk to 24.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/play-billing-desugaring.md"
+    },
+    {
+      "rule": "test-store-key",
+      "severity": "warning",
+      "platform": "android",
+      "file": "app/build.gradle",
+      "line": 15,
+      "message": "Test Store API key test_LeGa… is the only RevenueCat key rc-doctor found for this app. A release build configured with a Test Store key crashes on launch, and App Review rejects it.",
+      "fix": "Use the Test Store key in debug builds only (#if DEBUG, BuildConfig.DEBUG, a debug build type or a debug source set) and the store's public SDK key in release builds (`rc apps keys <app-id>`). If only debug builds reach this line, add `rc-doctor:ignore test-store-key -- debug only` to it.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/test-store-key.md"
+    },
+    {
+      "rule": "android-application-class",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/LegacyApp.kt",
+      "line": 8,
+      "message": "LegacyApp configures RevenueCat, but app/src/main/AndroidManifest.xml doesn't register it as android:name on <application>, so Android never creates it and Purchases.configure never runs.",
+      "fix": "Add android:name=\"com.example.legacy.LegacyApp\" to the <application> element in app/src/main/AndroidManifest.xml.",
+      "fixable": "suggested",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/android-application-class.md"
+    },
+    {
+      "rule": "restore-purchases",
+      "severity": "warning",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/LegacyApp.kt",
+      "line": 11,
+      "message": "The android app never offers to restore purchases: no restorePurchases call, RevenueCat paywall or Customer Center was found. Users who reinstall or switch devices can't get their purchases back without it.",
+      "fix": "Add a \"Restore purchases\" button that calls restorePurchases, on the paywall or in settings, or show a RevenueCat paywall or the Customer Center, which include one.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/restore-purchases.md"
+    },
+    {
+      "rule": "hardcoded-app-user-id",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/LegacyApp.kt",
+      "line": 13,
+      "message": "The fixed app user ID \"demo_user\" is passed to the SDK. Every user who runs this code becomes the same RevenueCat customer and shares its purchases.",
+      "fix": "Pass your signed-in user's ID, or leave it out so RevenueCat creates an anonymous ID per install.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/hardcoded-app-user-id.md"
+    },
+    {
+      "rule": "purchases-completed-by-app",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/LegacyApp.kt",
+      "line": 14,
+      "message": "Purchases are completed by the app (PurchasesAreCompletedBy.MY_APP), but no acknowledgePurchase or consumeAsync call was found. Google Play refunds purchases that aren't acknowledged within 3 days.",
+      "fix": "Acknowledge each purchase with BillingClient.acknowledgePurchase (or consume consumables) once access is granted, or let RevenueCat complete purchases, the default.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/purchases-completed-by-app.md"
+    },
+    {
+      "rule": "entitlement-products",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/MainActivity.kt",
+      "line": 8,
+      "message": "Entitlement \"pro\" has no products attached, so no purchase can unlock it.",
+      "fix": "Attach the products that should grant it, in the dashboard or with `rc entitlements attach <entitlement-id> <product-id>`.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/entitlement-products.md"
+    },
+    {
+      "rule": "current-offering",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/MainActivity.kt",
+      "line": 11,
+      "message": "The code reads the current offering, but no offering in your RevenueCat project is marked current, so it is null and the paywall has nothing to show.",
+      "fix": "Mark an offering as current in the dashboard, or run `rc offerings set-current <offering-id>`.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/current-offering.md"
+    },
+    {
+      "rule": "empty-offering",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/MainActivity.kt",
+      "line": 11,
+      "message": "Offering \"seasonal\" has no packages, so its availablePackages list is empty and there is nothing to buy.",
+      "fix": "Add packages to the offering and attach a product to each, in the dashboard or with `rc packages create` and `rc packages attach`.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/empty-offering.md"
+    },
+    {
+      "rule": "empty-offering",
+      "severity": "error",
+      "platform": "android",
+      "file": "app/src/main/java/com/example/legacy/MainActivity.kt",
+      "line": 13,
+      "message": "Package \"$rc_monthly\" in offering \"default\" has no product attached, so there is nothing to buy in it.",
+      "fix": "Attach a product to the package, in the dashboard or with `rc packages attach <package-id> <product-id>`.",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/empty-offering.md"
+    }
+  ],
+  "suppressed": 0
+}

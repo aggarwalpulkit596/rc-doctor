@@ -42,6 +42,16 @@ type Definition struct {
 type APIKey struct {
 	Value    string   `json:"value"`
 	Location Location `json:"location"`
+
+	// Configured is set when the key reaches Purchases.configure: it is
+	// written in the configure call, or in the constant the call passes.
+	Configured bool `json:"configured,omitempty"`
+
+	// DebugOnly is set when the key, or the configure call that passes it,
+	// sits behind a debug-only guard the platform module recognizes: an
+	// #if DEBUG block, a BuildConfig.DEBUG check, a Gradle debug build type,
+	// or a debug source set or config file.
+	DebugOnly bool `json:"debug_only,omitempty"`
 }
 
 // Facts is everything one platform module learned about one app target.
@@ -59,6 +69,58 @@ type Facts struct {
 	// KeyPrefixes are the public API key prefixes valid for this platform.
 	// The engine fills this from the platform module so rules stay platform-neutral.
 	KeyPrefixes []string `json:"key_prefixes"`
+
+	// AppUserIDs are fixed app user IDs passed to the SDK (configure's
+	// appUserID, logIn): literals, or constants resolved to one.
+	AppUserIDs []Ref `json:"app_user_ids,omitempty"`
+
+	// Signals record whether the app does something anywhere in its code, and
+	// where: restoring purchases, showing a RevenueCat paywall, and so on.
+	// Keys are the Signal* constants.
+	Signals map[string][]Location `json:"signals,omitempty"`
+
+	// Build holds build settings the platform read, keyed by the Build*
+	// constants. An absent key means the setting wasn't found, not "false".
+	Build map[string]Setting `json:"build,omitempty"`
+}
+
+// Signal names. A platform module records a signal for every place its code
+// does the thing; rules ask whether a signal is present at all.
+const (
+	SignalRestore          = "restore"             // restorePurchases and equivalents
+	SignalPaywallUI        = "paywall-ui"          // a RevenueCatUI paywall, which includes a restore button
+	SignalCustomerCenter   = "customer-center"     // RevenueCatUI Customer Center, which includes restore
+	SignalCurrentOffering  = "current-offering"    // reads offerings.current
+	SignalCompletedByMyApp = "completed-by-my-app" // purchases are completed (acknowledged or finished) by the app
+	SignalFinishesPurchase = "finishes-purchase"   // the app acknowledges, consumes or finishes a store transaction
+	SignalTestStoreRelease = "test-store-release"  // the app lets release builds use a Test Store key (forceAllowTestStoreInReleaseBuilds)
+)
+
+// Build setting keys.
+const (
+	BuildSDKArtifact      = "revenuecat.sdk_artifact"           // e.g. "purchases", "purchases-kmp-core"
+	BuildSDKVersion       = "revenuecat.sdk_version"            // as declared, e.g. "8.10.8"
+	BuildMinSDK           = "android.min_sdk"                   // e.g. "21"
+	BuildDesugaring       = "android.core_library_desugaring"   // "true" when enabled
+	BuildApplicationClass = "android.application_class"         // fully qualified Application subclass that configures the SDK
+	BuildManifest         = "android.manifest"                  // a main AndroidManifest.xml was found (value: its path)
+	BuildManifestAppName  = "android.manifest_application_name" // fully qualified android:name of <application>, if set
+)
+
+// Setting is one build setting and where it was read.
+type Setting struct {
+	Value    string   `json:"value"`
+	Location Location `json:"location"`
+}
+
+// HasSignal reports whether any of the named signals was found.
+func (f Facts) HasSignal(names ...string) bool {
+	for _, n := range names {
+		if len(f.Signals[n]) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // App is one app configured in the RevenueCat project.
@@ -75,9 +137,51 @@ type Dashboard struct {
 	Offerings    []string `json:"offerings"`    // offering lookup keys
 	Apps         []App    `json:"apps"`
 
+	// Catalog holds how offerings, packages, products and entitlements connect.
+	// It is nil when the provider couldn't load it; rules that need it then
+	// stay silent rather than guess.
+	Catalog *Catalog `json:"catalog,omitempty"`
+
 	// Notes are messages from the provider about a partial load (for example,
 	// apps couldn't be listed). They are shown in reports, never saved.
 	Notes []string `json:"-"`
+}
+
+// Catalog is the part of a project that decides what a purchase unlocks and
+// what a paywall can sell.
+type Catalog struct {
+	// CurrentOffering is the lookup key of the offering marked current, or ""
+	// when none is.
+	CurrentOffering string `json:"current_offering"`
+	// Packages maps an offering's lookup key to its packages.
+	Packages map[string][]Package `json:"packages"`
+	// EntitlementProducts maps an entitlement's lookup key to the store
+	// identifiers of the products that grant it.
+	EntitlementProducts map[string][]string `json:"entitlement_products"`
+	// ProductTypes maps every product's store identifier to its RevenueCat
+	// type: subscription, consumable, non_consumable, non_renewing_subscription
+	// or one_time. Nil when the products couldn't be listed.
+	ProductTypes map[string]string `json:"product_types,omitempty"`
+}
+
+// OnlyConsumables reports whether the project lists products and every one of
+// them is a consumable, which nothing can restore.
+func (c *Catalog) OnlyConsumables() bool {
+	if c == nil || len(c.ProductTypes) == 0 {
+		return false
+	}
+	for _, t := range c.ProductTypes {
+		if t != "consumable" {
+			return false
+		}
+	}
+	return true
+}
+
+// Package is one package in an offering.
+type Package struct {
+	ID       string   `json:"id"`       // lookup key, such as $rc_monthly
+	Products []string `json:"products"` // store identifiers of the products attached
 }
 
 // AppsFor returns the configured apps for a platform.

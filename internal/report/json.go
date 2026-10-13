@@ -7,6 +7,7 @@ import (
 	"github.com/aggarwalpulkit596/rc-doctor/internal/buildinfo"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/engine"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/model"
+	"github.com/aggarwalpulkit596/rc-doctor/internal/rules"
 )
 
 func init() { Register(JSON{}) }
@@ -28,6 +29,7 @@ type jsonFinding struct {
 	Message  string         `json:"message"`
 	Fix      string         `json:"fix,omitempty"`
 	Fixable  model.Safety   `json:"fixable,omitempty"` // "safe" or "suggested"
+	Docs     string         `json:"docs"`
 }
 
 type jsonApp struct {
@@ -35,25 +37,34 @@ type jsonApp struct {
 	AppID    string `json:"app_id,omitempty"`
 }
 
+// SchemaVersion is the version of the JSON report's shape. It changes only
+// when a field is removed or changes meaning; new fields don't bump it.
+// docs/output.md documents the shape.
+const SchemaVersion = 1
+
 type jsonReport struct {
-	Tool      string               `json:"tool"`
-	Version   string               `json:"version"`
-	Root      string               `json:"root"`
-	Apps      []jsonApp            `json:"apps"`
-	Dashboard string               `json:"dashboard"`
-	Summary   map[string]int       `json:"summary"`
-	Findings  []jsonFinding        `json:"findings"`
-	Skipped   []engine.SkippedRule `json:"skipped,omitempty"`
-	Notes     []string             `json:"notes,omitempty"`
+	SchemaVersion int                  `json:"schema_version"`
+	Tool          string               `json:"tool"`
+	Version       string               `json:"version"`
+	Root          string               `json:"root"`
+	Apps          []jsonApp            `json:"apps"`
+	Dashboard     string               `json:"dashboard"`
+	Summary       map[string]int       `json:"summary"`
+	Findings      []jsonFinding        `json:"findings"`
+	Suppressed    int                  `json:"suppressed"`
+	Skipped       []engine.SkippedRule `json:"skipped,omitempty"`
+	Notes         []string             `json:"notes,omitempty"`
 }
 
 func (JSON) Write(w io.Writer, r *engine.Result) error {
 	out := jsonReport{
-		Tool:      "rc-doctor",
-		Version:   buildinfo.String(),
-		Root:      r.Root,
-		Apps:      []jsonApp{},
-		Dashboard: r.Dashboard,
+		SchemaVersion: SchemaVersion,
+		Suppressed:    len(r.Suppressed),
+		Tool:          "rc-doctor",
+		Version:       buildinfo.String(),
+		Root:          r.Root,
+		Apps:          []jsonApp{},
+		Dashboard:     r.Dashboard,
 		Summary: map[string]int{
 			"error":   r.Count(model.Error),
 			"warning": r.Count(model.Warning),
@@ -76,6 +87,7 @@ func (JSON) Write(w io.Writer, r *engine.Result) error {
 			Message:  f.Message,
 			Fix:      f.Fix,
 			Fixable:  f.Fixable(),
+			Docs:     rules.DocsURL(f.Rule),
 		})
 	}
 	enc := json.NewEncoder(w)

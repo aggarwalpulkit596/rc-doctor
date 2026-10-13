@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,11 +17,18 @@ func init() { Register(apiKey{}) }
 // Purchases.configure is a placeholder ("REVENUECAT_API_KEY") or a typo.
 var keyShaped = regexp.MustCompile(`^[a-z]{2,4}_[A-Za-z0-9]{16,}$`)
 
+// defaultsFile matches settings files that hold defaults or examples for a
+// file kept out of the repository: secrets.defaults.properties (the Secrets
+// Gradle Plugin's convention), local.defaults.properties, Config.example.xcconfig.
+var defaultsFile = regexp.MustCompile(`(?i)(^|[._-])(defaults?|example|sample|template)[._-]`)
+
 // secretPrefix marks RevenueCat secret API keys, which belong on servers only.
 const secretPrefix = "sk_"
 
 // apiKey checks every key found in code and config files:
-//   - a placeholder passed to Purchases.configure is an error: nothing works;
+//   - a placeholder passed to Purchases.configure is an error: nothing works
+//     (in a defaults file that a file outside the repository overrides, it is
+//     info: that is how the placeholder is meant to work);
 //   - a secret key in an app is an error: it must never ship;
 //   - a public key for another platform is an error: each app has its own key;
 //   - with the dashboard loaded, a key that isn't from the project being
@@ -45,6 +53,12 @@ func (r apiKey) Check(ctx *Context) []model.Finding {
 			masked := redact.Keys(k.Value)
 			fd := model.Finding{Rule: r.ID(), Platform: f.Platform, Location: k.Location}
 			switch owner := ctx.KeyPrefixes[prefix]; {
+			case !keyShaped.MatchString(k.Value) && defaultsFile.MatchString(path.Base(k.Location.File)):
+				// secrets.defaults.properties and friends hold placeholders on
+				// purpose: a file kept out of the repository overrides them.
+				fd.Severity = model.Info
+				fd.Message = fmt.Sprintf("The RevenueCat key in %s is the placeholder %q, a default for a file that isn't in the repository to override. Builds made without that file, such as a fresh clone or a CI job without the secret, configure the SDK with the placeholder.", path.Base(k.Location.File), k.Value)
+				fd.Fix = "Make sure release builds get the real public SDK key, for example from a CI secret, and fail when it's missing."
 			case !keyShaped.MatchString(k.Value):
 				fd.Severity = model.Error
 				fd.Message = fmt.Sprintf("Purchases is configured with %q, which isn't a RevenueCat API key. It looks like a placeholder that was never replaced.", k.Value)
@@ -62,7 +76,7 @@ func (r apiKey) Check(ctx *Context) []model.Finding {
 				fd.Fix, fd.Edits = propose(ctx, f, k, "")
 			case owner != "":
 				fd.Severity = model.Error
-				fd.Message = fmt.Sprintf("%s is a public key for %s apps, but this is the %s app. Each RevenueCat app has its own public SDK key.", masked, owner, f.Platform)
+				fd.Message = fmt.Sprintf("%s is a public key for %s apps, but this is the %s app. The SDK's first request fails with an invalid credentials error.", masked, owner, f.Platform)
 				fd.Fix, fd.Edits = propose(ctx, f, k, "")
 			default:
 				continue // a prefix no platform claims: web billing, test store, or not a key at all

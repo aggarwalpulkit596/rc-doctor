@@ -15,6 +15,7 @@ import (
 
 	// Commands.
 	_ "github.com/aggarwalpulkit596/rc-doctor/internal/commands/check"
+	_ "github.com/aggarwalpulkit596/rc-doctor/internal/commands/explain"
 	_ "github.com/aggarwalpulkit596/rc-doctor/internal/commands/facts"
 	_ "github.com/aggarwalpulkit596/rc-doctor/internal/commands/list"
 	_ "github.com/aggarwalpulkit596/rc-doctor/internal/commands/migrate"

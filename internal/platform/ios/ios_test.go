@@ -15,6 +15,18 @@ func TestDetect(t *testing.T) {
 	if (IOS{}).Detect(testutil.Testdata(t, "sample", "android")) {
 		t.Error("the Android app alone has no Apple project")
 	}
+	// SDK 3.x and earlier shipped as the Purchases pod.
+	for _, files := range []map[string]string{
+		{"Podfile": "target 'App' do\n  pod 'Purchases', '3.8.0'\nend\n"},
+		{"Podfile.lock": "PODS:\n  - Purchases (3.8.0):\n    - PurchasesCoreSwift (= 3.8.0)\n"},
+	} {
+		if !(IOS{}).Detect(testutil.WriteFiles(t, files)) {
+			t.Errorf("legacy pod not detected: %v", files)
+		}
+	}
+	if (IOS{}).Detect(testutil.WriteFiles(t, map[string]string{"Podfile": "pod 'PurchasesKit'\n"})) {
+		t.Error("another pod whose name starts with Purchases isn't RevenueCat")
+	}
 }
 
 func TestCollectSample(t *testing.T) {
@@ -33,7 +45,11 @@ func TestCollectSample(t *testing.T) {
 	if f.AppID != "com.example.paywall" || f.AppIDAt != at("ios/Paywall.xcodeproj/project.pbxproj", 27) {
 		t.Errorf("AppID = %q at %v", f.AppID, f.AppIDAt)
 	}
-	if want := []model.APIKey{{Value: "sk_AbCdEfGhIjKlMnOpQrSt", Location: at("ios/Paywall/PaywallApp.swift", 8)}}; !reflect.DeepEqual(f.APIKeys, want) {
+	// The Test Store key sits inside #if DEBUG; the secret key is what release builds use.
+	if want := []model.APIKey{
+		{Value: "test_AbCdEfGhIjKlMnOpQrSt", Location: at("ios/Paywall/PaywallApp.swift", 8), DebugOnly: true},
+		{Value: "sk_AbCdEfGhIjKlMnOpQrSt", Location: at("ios/Paywall/PaywallApp.swift", 11)},
+	}; !reflect.DeepEqual(f.APIKeys, want) {
 		t.Errorf("APIKeys = %+v, want %+v", f.APIKeys, want)
 	}
 	if want := []model.Ref{{ID: "premium", Location: at("ios/Paywall/ContentView.swift", 11)}}; !reflect.DeepEqual(f.Entitlements, want) {
@@ -42,7 +58,7 @@ func TestCollectSample(t *testing.T) {
 	if want := []model.Ref{{ID: "summer_sale", Location: at("ios/Paywall/ContentView.swift", 15)}}; !reflect.DeepEqual(f.Offerings, want) {
 		t.Errorf("Offerings = %+v, want %+v", f.Offerings, want)
 	}
-	if want := []model.Location{at("ios/Paywall/PaywallApp.swift", 8)}; !reflect.DeepEqual(f.ConfigureAt, want) {
+	if want := []model.Location{at("ios/Paywall/PaywallApp.swift", 13)}; !reflect.DeepEqual(f.ConfigureAt, want) {
 		t.Errorf("ConfigureAt = %+v, want %+v", f.ConfigureAt, want)
 	}
 }

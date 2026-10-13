@@ -47,6 +47,7 @@ type sarifDriver struct {
 type sarifRule struct {
 	ID               string       `json:"id"`
 	ShortDescription sarifMessage `json:"shortDescription"`
+	HelpURI          string       `json:"helpUri"`
 }
 
 type sarifMessage struct {
@@ -54,10 +55,17 @@ type sarifMessage struct {
 }
 
 type sarifResult struct {
-	RuleID    string          `json:"ruleId"`
-	Level     string          `json:"level"`
-	Message   sarifMessage    `json:"message"`
-	Locations []sarifLocation `json:"locations,omitempty"`
+	RuleID       string             `json:"ruleId"`
+	Level        string             `json:"level"`
+	Message      sarifMessage       `json:"message"`
+	Locations    []sarifLocation    `json:"locations,omitempty"`
+	Suppressions []sarifSuppression `json:"suppressions,omitempty"`
+}
+
+// sarifSuppression marks a result someone silenced on purpose: "inSource"
+// for an rc-doctor:ignore comment, "external" for .rc-doctor.json.
+type sarifSuppression struct {
+	Kind string `json:"kind"`
 }
 
 type sarifLocation struct {
@@ -84,22 +92,23 @@ func (SARIF) Write(w io.Writer, r *engine.Result) error {
 		InformationURI: "https://github.com/aggarwalpulkit596/rc-doctor",
 	}
 	for _, rule := range rules.All() {
-		driver.Rules = append(driver.Rules, sarifRule{ID: rule.ID(), ShortDescription: sarifMessage{Text: rule.Description()}})
+		driver.Rules = append(driver.Rules, sarifRule{
+			ID:               rule.ID(),
+			ShortDescription: sarifMessage{Text: rule.Description()},
+			HelpURI:          rules.DocsURL(rule.ID()),
+		})
 	}
 	run := sarifRun{Tool: sarifTool{Driver: driver}, Results: []sarifResult{}}
 	for _, f := range r.Findings {
-		text := f.Message
-		if f.Fix != "" {
-			text += " Fix: " + f.Fix
+		run.Results = append(run.Results, sarifResultFor(r.Root, f))
+	}
+	for _, s := range r.Suppressed {
+		res := sarifResultFor(r.Root, s.Finding)
+		kind := "external"
+		if s.By == engine.SuppressedByComment {
+			kind = "inSource"
 		}
-		res := sarifResult{RuleID: f.Rule, Level: sarifLevel(f.Severity), Message: sarifMessage{Text: text}}
-		if f.Location.File != "" {
-			loc := sarifPhysical{ArtifactLocation: sarifArtifact{URI: uri(r.Root, f.Location.File)}}
-			if f.Location.Line > 0 {
-				loc.Region = &sarifRegion{StartLine: f.Location.Line}
-			}
-			res.Locations = []sarifLocation{{PhysicalLocation: loc}}
-		}
+		res.Suppressions = []sarifSuppression{{Kind: kind}}
 		run.Results = append(run.Results, res)
 	}
 	enc := json.NewEncoder(w)
@@ -110,6 +119,22 @@ func (SARIF) Write(w io.Writer, r *engine.Result) error {
 		Schema:  "https://json.schemastore.org/sarif-2.1.0.json",
 		Runs:    []sarifRun{run},
 	})
+}
+
+func sarifResultFor(root string, f model.Finding) sarifResult {
+	text := f.Message
+	if f.Fix != "" {
+		text += " Fix: " + f.Fix
+	}
+	res := sarifResult{RuleID: f.Rule, Level: sarifLevel(f.Severity), Message: sarifMessage{Text: text}}
+	if f.Location.File != "" {
+		loc := sarifPhysical{ArtifactLocation: sarifArtifact{URI: uri(root, f.Location.File)}}
+		if f.Location.Line > 0 {
+			loc.Region = &sarifRegion{StartLine: f.Location.Line}
+		}
+		res.Locations = []sarifLocation{{PhysicalLocation: loc}}
+	}
+	return res
 }
 
 func sarifLevel(s model.Severity) string {

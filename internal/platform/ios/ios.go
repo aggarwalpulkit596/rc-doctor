@@ -18,7 +18,9 @@ type IOS struct{}
 
 var (
 	manifestFiles = []string{"Package.swift", "Package.resolved", "Podfile", "Podfile.lock", "project.pbxproj"}
-	sdkMarkers    = []string{"purchases-ios", "RevenueCat"}
+	// sdkMarkers name the SDK in those files. Before 4.0 the CocoaPods pod was
+	// called Purchases, which only counts with CocoaPods' own syntax around it.
+	sdkMarkers = []string{"purchases-ios", "RevenueCat", "pod 'Purchases'", `pod "Purchases"`, "- Purchases ("}
 
 	bundleID = regexp.MustCompile(`PRODUCT_BUNDLE_IDENTIFIER\s*=\s*"?([^";]+?)"?\s*;`)
 
@@ -27,6 +29,10 @@ var (
 	offeringIdentifierIdent = regexp.MustCompile(`offering\(\s*identifier:\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)`)
 	// Objective-C configures with [RCPurchases configureWithAPIKey:@"..."].
 	configureObjC = regexp.MustCompile(`\bRCPurchases\s+configureWith`)
+
+	// FinishesPurchase is the app finishing a StoreKit transaction itself,
+	// which purchasesAreCompletedBy(.myApp) makes its job.
+	FinishesPurchase = regexp.MustCompile(`\.finish\(\s*\)|\bfinishTransaction\s*\(`)
 
 	spec = scan.Spec{
 		// Test targets: FooTests, FooUITests, and SwiftPM's Tests directory.
@@ -42,6 +48,9 @@ var (
 				EntitlementIdents: scan.EntitlementIdents,
 				OfferingIdents:    append([]*regexp.Regexp{offeringIdentifierIdent}, scan.OfferingIdents...),
 				KeyIdents:         scan.KeyIdents,
+				AppUserIDs:        scan.AppUserIDLiterals,
+				AppUserIDIdents:   scan.AppUserIDIdents,
+				Signals:           scan.WithSignals(model.SignalFinishesPurchase, FinishesPurchase),
 			},
 			{
 				// Keys kept out of code: build settings and Info.plist values.
@@ -54,9 +63,10 @@ var (
 
 func (IOS) Name() string { return "ios" }
 
-// KeyPrefixes: App Store and Mac App Store apps.
-// TODO(verify): confirm the prefix against RevenueCat's API keys documentation.
-func (IOS) KeyPrefixes() []string { return []string{"appl_"} }
+// KeyPrefixes: App Store apps, and legacy Mac App Store apps. The prefixes
+// are the ones the SDK itself accepts (Configuration.swift in
+// RevenueCat/purchases-ios).
+func (IOS) KeyPrefixes() []string { return []string{"appl_", "mac_"} }
 
 func (IOS) Detect(root string) bool {
 	return scan.Contains(root, manifestFiles, sdkMarkers...)
@@ -74,6 +84,8 @@ func (IOS) Collect(root string) ([]model.Facts, error) {
 		ConfigureAt:  src.ConfigureAt,
 		Entitlements: src.Entitlements,
 		Offerings:    src.Offerings,
+		AppUserIDs:   src.AppUserIDs,
+		Signals:      src.Signals,
 	}
 	if m, ok := BundleID(root); ok {
 		f.AppID, f.AppIDAt = m.Value, m.Location

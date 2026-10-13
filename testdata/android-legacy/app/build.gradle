@@ -1,0 +1,21 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.example.legacy'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.example.legacy"
+        minSdkVersion 21
+        targetSdk 35
+        // The Test Store key, in every build type.
+        buildConfigField "String", "REVENUECAT_KEY", "\"test_LeGaCyTeStStOrEkEy01\""
+    }
+}
+
+dependencies {
+    implementation 'com.revenuecat.purchases:purchases:9.2.0'
+}

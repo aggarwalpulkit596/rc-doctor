@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/aggarwalpulkit596/rc-doctor/internal/cli"
+	"github.com/aggarwalpulkit596/rc-doctor/internal/config"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/dashboard"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/engine"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/fix"
@@ -76,9 +77,10 @@ func ParseRoot(fs *flag.FlagSet, args []string, stderr io.Writer) (root string, 
 
 // ScanFlags select what to scan and which RevenueCat project to check against.
 type ScanFlags struct {
-	Platforms string
-	Dashboard string
-	ProjectID string
+	Platforms  string
+	Dashboard  string
+	ProjectID  string
+	ConfigPath string
 }
 
 // BindScan registers --platform, --dashboard and --project-id.
@@ -87,6 +89,7 @@ func BindScan(fs *flag.FlagSet) *ScanFlags {
 	fs.StringVar(&f.Platforms, "platform", "", "only these platforms, comma-separated (default: auto-detect)")
 	fs.StringVar(&f.Dashboard, "dashboard", "auto", "RevenueCat project source: auto, rc, offline, or a snapshot .json file")
 	fs.StringVar(&f.ProjectID, "project-id", "", "RevenueCat project ID, passed to the rc CLI")
+	fs.StringVar(&f.ConfigPath, "config", "", "config file (default: "+config.FileName+" in the checked directory, if present)")
 	return f
 }
 
@@ -107,29 +110,37 @@ func (f *ScanFlags) PlatformList() []string {
 //	rc       the rc CLI, and fail if it can't load the project
 //	offline  no project: only the checks that work from code alone
 //	<file>   a snapshot written by `rc-doctor snapshot`
-func (f *ScanFlags) Options(root string) engine.Options {
-	opts := engine.Options{Root: root, Platforms: f.PlatformList()}
+func (f *ScanFlags) Options(root string) (engine.Options, error) {
+	cfg, err := config.Load(root, f.ConfigPath)
+	if err != nil {
+		return engine.Options{}, err
+	}
+	opts := engine.Options{Root: root, Platforms: f.PlatformList(), Config: cfg}
 	switch f.Dashboard {
 	case "", "auto":
 		if path, err := exec.LookPath("rc"); err == nil {
-			opts.Dashboard = dashboard.RCCLI{Binary: path, ProjectID: f.ProjectID}
+			opts.Dashboard = dashboard.RCCLI{Binary: path, ProjectID: f.ProjectID, Dir: root}
 		} else {
 			opts.OfflineNote = "The RevenueCat CLI (rc) isn't installed, so checks that need your project were skipped. Install it, or pass --dashboard with a snapshot file."
 		}
 	case "rc":
-		opts.Dashboard = dashboard.RCCLI{ProjectID: f.ProjectID}
+		opts.Dashboard = dashboard.RCCLI{ProjectID: f.ProjectID, Dir: root}
 		opts.StrictDashboard = true
 	case "offline", "none":
 	default:
 		opts.Dashboard = dashboard.Snapshot{Path: f.Dashboard}
 		opts.StrictDashboard = true
 	}
-	return opts
+	return opts, nil
 }
 
 // Run runs the engine on root with these flags.
 func (f *ScanFlags) Run(ctx context.Context, root string) (*engine.Result, error) {
-	return engine.Run(ctx, f.Options(root))
+	opts, err := f.Options(root)
+	if err != nil {
+		return nil, err
+	}
+	return engine.Run(ctx, opts)
 }
 
 // BindFormat registers --format with every registered reporter as a choice.

@@ -50,6 +50,12 @@ func All() []Rule { return reg.All() }
 // Get returns a rule by ID.
 func Get(id string) (Rule, bool) { return reg.Get(id) }
 
+// DocsURL is where a rule's documentation lives. The same pages ship inside
+// the binary (`rc-doctor explain <rule>`).
+func DocsURL(id string) string {
+	return "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/" + id + ".md"
+}
+
 // pathOf returns the absolute path of a location reported for f.
 func pathOf(f model.Facts, loc model.Location) string {
 	return filepath.Join(f.Root, filepath.FromSlash(loc.File))

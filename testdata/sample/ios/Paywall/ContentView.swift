@@ -16,3 +16,9 @@ struct ContentView: View {
             }
     }
 }
+
+extension ContentView {
+    func restore() async {
+        _ = try? await Purchases.shared.restorePurchases()
+    }
+}

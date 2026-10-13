@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aggarwalpulkit596/rc-doctor/internal/config"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/dashboard"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/model"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/platform"
@@ -36,6 +37,9 @@ type Options struct {
 	StrictDashboard bool
 	// OfflineNote explains why Dashboard is nil, for the report.
 	OfflineNote string
+
+	// Config is the project's .rc-doctor.json; nil means the defaults.
+	Config *config.Config
 }
 
 // SkippedRule is a rule that didn't run, and why.
@@ -59,7 +63,23 @@ type Result struct {
 	Notes         []string
 	Findings      []model.Finding
 	Skipped       []SkippedRule
+	// Suppressed are findings silenced by an rc-doctor:ignore comment or an
+	// ignore pattern in .rc-doctor.json. Reports count them; SARIF keeps them,
+	// marked as suppressed, so code scanning knows they were reviewed.
+	Suppressed []Suppressed
 }
+
+// Suppressed is a finding that was silenced, and how.
+type Suppressed struct {
+	Finding model.Finding
+	By      string // SuppressedByComment or SuppressedByConfig
+}
+
+// How a finding was suppressed.
+const (
+	SuppressedByComment = "comment"
+	SuppressedByConfig  = "config"
+)
 
 // Collect resolves root, picks platforms (the named ones, or every platform
 // whose Detect matches) and collects their facts.
@@ -160,8 +180,20 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}
 
+	cfg := opts.Config
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	if err := cfg.Validate(RuleIDs()); err != nil {
+		return nil, err
+	}
+
 	rctx := &rules.Context{Facts: res.Facts, Dashboard: res.DashboardData, KeyPrefixes: KeyPrefixes()}
 	for _, r := range rules.All() {
+		if !cfg.Enabled(r.ID()) {
+			res.Skipped = append(res.Skipped, SkippedRule{Rule: r.ID(), Reason: "turned off in " + config.FileName})
+			continue
+		}
 		if r.NeedsDashboard() && rctx.Dashboard == nil {
 			res.Skipped = append(res.Skipped, SkippedRule{
 				Rule:   r.ID(),
@@ -172,8 +204,18 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		res.Findings = append(res.Findings, r.Check(rctx)...)
 	}
 	res.Findings = dedupe(res.Findings)
+	res.Findings, res.Suppressed = suppress(res.Root, res.Findings, cfg)
 	sortFindings(res.Findings)
 	return res, nil
+}
+
+// RuleIDs returns the IDs of every registered rule.
+func RuleIDs() []string {
+	var ids []string
+	for _, r := range rules.All() {
+		ids = append(ids, r.ID())
+	}
+	return ids
 }
 
 // dedupe drops findings that repeat one already reported for the same line.

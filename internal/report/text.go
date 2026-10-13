@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/aggarwalpulkit596/rc-doctor/internal/config"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/engine"
 	"github.com/aggarwalpulkit596/rc-doctor/internal/model"
 )
@@ -109,14 +110,18 @@ func groupSkipped(skipped []engine.SkippedRule) []skippedGroup {
 }
 
 func summary(r *engine.Result, fixHint bool) string {
+	suppressed := ""
+	if n := len(r.Suppressed); n > 0 {
+		suppressed = fmt.Sprintf(" %s suppressed by rc-doctor:ignore comments or %s.", plural(n, "finding"), config.FileName)
+	}
 	if len(r.Findings) == 0 {
-		return "No problems found."
+		return "No problems found." + suppressed
 	}
 	s := fmt.Sprintf("%s, %s", plural(r.Count(model.Error), "error"), plural(r.Count(model.Warning), "warning"))
 	if n := r.Count(model.Info); n > 0 {
 		s += ", " + plural(n, "info message")
 	}
-	s += "."
+	s += "." + suppressed
 	safe, suggested := 0, 0
 	for _, f := range r.Findings {
 		switch f.Fixable() {

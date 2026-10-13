@@ -1,0 +1,10 @@
+rc-doctor checked android (com.example.kmp), ios (com.example.kmp.ios)
+against RevenueCat project: snapshot:testdata/dashboard-kmp.json
+
+android
+  error   unknown-entitlement  testdata/kmp/composeApp/src/commonMain/kotlin/com/example/kmp/Billing.kt:14
+          Entitlement "premum" (RC_ENTITLEMENT, set at composeApp/build.gradle.kts:17) is used in code but doesn't exist in your RevenueCat project.
+          fix: Did you mean "premium"?  [suggested fix]
+
+1 error, 0 warnings.
+Automatic fixes available: 0 safe, 1 suggested. Preview them by running `rc-doctor review` with the same arguments.

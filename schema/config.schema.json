@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/aggarwalpulkit596/rc-doctor/main/schema/config.schema.json",
+  "title": "rc-doctor configuration",
+  "description": "Settings in .rc-doctor.json, at the root rc-doctor checks.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This schema's URL, for editor completion."
+    },
+    "rules": {
+      "type": "object",
+      "description": "Turn a rule off, or replace its severity.",
+      "propertyNames": {
+        "enum": [
+          "android-application-class",
+          "api-key",
+          "app-id",
+          "current-offering",
+          "empty-offering",
+          "entitlement-products",
+          "hardcoded-app-user-id",
+          "play-billing-desugaring",
+          "purchases-completed-by-app",
+          "restore-purchases",
+          "test-store-key",
+          "unknown-entitlement",
+          "unknown-offering"
+        ]
+      },
+      "additionalProperties": {
+        "enum": [
+          "off",
+          "error",
+          "warning",
+          "info"
+        ]
+      }
+    },
+    "ignore": {
+      "type": "array",
+      "description": "Root-relative paths whose findings are dropped, as .gitignore patterns: * within a segment, ** across segments, a trailing / for everything under a directory, and a / at the start or in the middle anchors the pattern to the root.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

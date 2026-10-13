@@ -83,7 +83,10 @@ func (c Command) Run(ctx context.Context, args []string, stdout, stderr io.Write
 
 	// Check again against the same project state, so the result reflects the
 	// edits and nothing else.
-	opts := scan.Options(root)
+	opts, err := scan.Options(root)
+	if err != nil {
+		return shared.Fail(stderr, err)
+	}
 	opts.Dashboard, opts.StrictDashboard, opts.OfflineNote = nil, false, ""
 	if res.DashboardData != nil {
 		opts.Dashboard = dashboard.Static{Label: res.Dashboard, Data: res.DashboardData}

@@ -38,6 +38,9 @@ var (
 	propertyLine = regexp.MustCompile(`^\s*([A-Za-z0-9_.-]+)\s*[=:]\s*(\S(?:.*\S)?)\s*$`)
 	// getProperty("NAME", "default") in a Gradle script.
 	gradleDefault = regexp.MustCompile(`getProperty\(\s*"([A-Za-z0-9_.-]+)"\s*,\s*("[^"\\]*")\s*\)`)
+	// buildConfigField "String", "NAME", "\"value\"" (Groovy, or Kotlin with
+	// parentheses): the value code reads as BuildConfig.NAME.
+	buildConfigField = regexp.MustCompile(`buildConfigField\s*\(?\s*"String"\s*,\s*"(\w+)"\s*,\s*"\\"([^"\\]*)\\""`)
 )
 
 // Constants collects string constants from source, properties and Gradle
@@ -59,22 +62,27 @@ func Constants(root string, exclude *regexp.Regexp) ConstTable {
 		default:
 			return true
 		}
+		gradle := tier == tierGradleDefault
 		eachLine(path, func(n int, text string) {
 			for _, m := range re.FindAllStringSubmatch(text, -1) {
-				value := strings.Trim(m[2], `"`)
-				t[m[1]] = append(t[m[1]], constEntry{tier: tier, Const: Const{
-					Value: value,
-					Definition: model.Definition{
-						Name:     m[1],
-						Location: model.Location{File: rel, Line: n},
-						Text:     m[2],
-					},
-				}})
+				t.add(m[1], strings.Trim(m[2], `"`), m[2], tier, model.Location{File: rel, Line: n})
+			}
+			if gradle {
+				for _, m := range buildConfigField.FindAllStringSubmatch(text, -1) {
+					t.add(m[1], m[2], m[2], tierCode, model.Location{File: rel, Line: n})
+				}
 			}
 		})
 		return true
 	})
 	return t
+}
+
+func (t ConstTable) add(name, value, text string, tier int, at model.Location) {
+	t[name] = append(t[name], constEntry{tier: tier, Const: Const{
+		Value:      value,
+		Definition: model.Definition{Name: name, Location: at, Text: text},
+	}})
 }
 
 // Lookup resolves an identifier such as Config.ENTITLEMENT_ID by its last

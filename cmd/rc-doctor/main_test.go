@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -67,7 +68,8 @@ func TestCheckIsTheDefaultAndOfflineWorks(t *testing.T) {
 	if code != cli.ExitFindings {
 		t.Fatalf("exit %d", code)
 	}
-	wantAll(t, out, "offline: no RevenueCat project loaded", "2 errors", "skipped app-id, unknown-entitlement, unknown-offering")
+	wantAll(t, out, "offline: no RevenueCat project loaded", "2 errors",
+		"skipped app-id, current-offering, empty-offering, entitlement-products, unknown-entitlement, unknown-offering")
 }
 
 func TestFailOn(t *testing.T) {
@@ -270,17 +272,32 @@ func TestReviewWithNothingToFix(t *testing.T) {
 }
 
 // fakeRCOnPath puts a shell script named rc on PATH that answers like the
-// RevenueCat CLI, so the real exec path is tested without network or login.
+// RevenueCat CLI ({"data": {"items": [...]}}, with a second page of offerings
+// behind next_page and `rc api GET`), so the real exec path is tested without
+// network or login. The project matches testdata/dashboard.json, with a
+// healthy catalog.
 func fakeRCOnPath(t *testing.T) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as a stand-in rc")
+	}
 	bin := t.TempDir()
 	script := `#!/bin/sh
+items() { echo "{\"data\":{\"items\":[$1]}}"; }
 case "$1 $2" in
-  "entitlements list") echo '[{"id":"entl1","lookup_key":"premium"}]' ;;
-  "offerings list") echo '{"items":[{"id":"o1","lookup_key":"default"},{"id":"o2","lookup_key":"annual_promo"}]}' ;;
-  "apps list") echo '{"items":[{"id":"app1","type":"play_store","play_store":{"package_name":"com.example.paywall"}},{"id":"app2","type":"app_store","app_store":{"bundle_id":"com.example.paywall"}}]}' ;;
+  "entitlements list") items '{"id":"entl1","lookup_key":"premium"}' ;;
+  "offerings list") echo '{"data":{"items":[{"id":"o1","lookup_key":"default","is_current":true}],"next_page":"/v2/projects/proj1/offerings?starting_after=o1"},"schema_version":1}' ;;
+  "api GET")
+    if [ "$3" = "/projects/proj1/offerings?starting_after=o1" ]; then
+      echo '{"object":"list","items":[{"id":"o2","lookup_key":"annual_promo","is_current":false}],"next_page":null}'
+    else echo "unexpected: $*" >&2; exit 5; fi ;;
+  "apps list") items '{"id":"app1","type":"play_store","play_store":{"package_name":"com.example.paywall"}},{"id":"app2","type":"app_store","app_store":{"bundle_id":"com.example.paywall"}}' ;;
   "apps keys")
-    if [ "$3" = "app1" ]; then echo '{"items":[{"key":"goog_ZyXwVuTsRqPoNmLkJiHg"}]}'; else echo '{"items":[{"key":"appl_AbCdEfGhIjKlMnOpQrSt"}]}'; fi ;;
+    if [ "$3" = "app1" ]; then items '{"key":"goog_ZyXwVuTsRqPoNmLkJiHg"}'; else items '{"key":"appl_AbCdEfGhIjKlMnOpQrSt"}'; fi ;;
+  "entitlements products") items '{"id":"p1","store_identifier":"premium_monthly"}' ;;
+  "offerings packages") items '{"id":"pk1","lookup_key":"$rc_monthly"}' ;;
+  "packages products") items '{"product":{"id":"p1","store_identifier":"premium_monthly"}}' ;;
+  "products list") items '{"id":"p1","store_identifier":"premium_monthly","type":"subscription"}' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `
@@ -300,13 +317,66 @@ func TestRCCLIEndToEnd(t *testing.T) {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
 	wantAll(t, out, "against RevenueCat project: rc-cli", "4 errors", "Automatic fixes available: 1 safe, 2 suggested.")
+	if strings.Contains(out, "note:") {
+		t.Errorf("a complete project load must not add notes:\n%s", out)
+	}
 
 	snap := filepath.Join(t.TempDir(), "project.json")
 	if out, code := run(t, "snapshot", "-o", snap); code != cli.ExitOK {
 		t.Fatalf("snapshot: exit %d:\n%s", code, out)
 	}
+	saved := testutil.ReadFile(t, snap)
+	for _, want := range []string{`"current_offering": "default"`, `"$rc_monthly"`, `"premium_monthly"`} {
+		if !strings.Contains(saved, want) {
+			t.Errorf("snapshot is missing %s:\n%s", want, saved)
+		}
+	}
 	out, _ = run(t, "check", dir, "--dashboard", snap)
 	wantAll(t, out, "4 errors", "Automatic fixes available: 1 safe, 2 suggested.")
+}
+
+func TestLegacyAppEveryChecklistRule(t *testing.T) {
+	dir := testutil.CopyTree(t, testutil.Testdata(t, "android-legacy"))
+	dash := testutil.Testdata(t, "dashboard-legacy.json")
+
+	out, code := run(t, "check", dir, "--dashboard", dash)
+	if code != cli.ExitFindings {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	wantAll(t, out, "7 errors, 3 warnings.",
+		"play-billing-desugaring", "android-application-class", "restore-purchases", "hardcoded-app-user-id",
+		"purchases-completed-by-app", "entitlement-products", "current-offering", "empty-offering", "test-store-key")
+
+	out, _ = run(t, "review", dir, "--dashboard", dash, "--fix", "--suggested")
+	wantAll(t, out, "Applied 1 fix:", "6 errors, 3 warnings.")
+	manifest := testutil.ReadFile(t, filepath.Join(dir, "app/src/main/AndroidManifest.xml"))
+	if !strings.Contains(manifest, `<application android:name="com.example.legacy.LegacyApp"`) {
+		t.Errorf("manifest not fixed:\n%s", manifest)
+	}
+}
+
+func TestExplain(t *testing.T) {
+	out, code := run(t, "explain", "api-key")
+	if code != cli.ExitOK || !strings.HasPrefix(out, "# api-key") || !strings.Contains(out, "Online: https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/api-key.md") {
+		t.Errorf("explain api-key: exit %d\n%s", code, out)
+	}
+	if out, code := run(t, "explain"); code != cli.ExitOK || !strings.Contains(out, "restore-purchases") {
+		t.Errorf("explain: exit %d\n%s", code, out)
+	}
+	if out, code := run(t, "explain", "nope"); code != cli.ExitError || !strings.Contains(out, `unknown rule "nope"`) {
+		t.Errorf("explain nope: exit %d\n%s", code, out)
+	}
+}
+
+func TestConfigErrorsStopTheRun(t *testing.T) {
+	dir, _ := sample(t)
+	cfg := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(cfg, []byte(`{"rules": {"api-keys": "off"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := run(t, "check", dir, "--config", cfg); code != cli.ExitError || !strings.Contains(out, `unknown rule "api-keys"`) {
+		t.Errorf("exit %d\n%s", code, out)
+	}
 }
 
 func TestMigrateSourceSelection(t *testing.T) {
