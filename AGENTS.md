@@ -21,9 +21,9 @@ go run ./cmd/rc-doctor check testdata/android-legacy --dashboard testdata/dashbo
 go run ./cmd/rc-doctor facts testdata/kmp      # what the platform modules read
 ```
 
-CI (`.github/workflows/ci.yml`) also runs golangci-lint v2.12.2 (`.golangci.yml`), `govulncheck`, a Windows
-cross-compile, the tests on macOS, `goreleaser check`, and a parse of every JSON file. Tool versions are pinned
-in `mise.toml`.
+CI (`.github/workflows/ci.yml`) builds with Go 1.26, as releases do, and also runs golangci-lint v2.12.2
+(`.golangci.yml`), `govulncheck`, a Windows cross-compile, the tests on macOS and on the minimum Go version in
+`go.mod` (1.24), `goreleaser check`, and a parse of every JSON file. Tool versions are pinned in `mise.toml`.
 
 ## Project Architecture
 

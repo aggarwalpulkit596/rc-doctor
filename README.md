@@ -53,7 +53,7 @@ cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
 sha256sum --ignore-missing -c checksums.txt
 ```
 
-rc-doctor has no third-party dependencies, so building from a checkout is `go build ./cmd/rc-doctor`.
+rc-doctor has no third-party dependencies, so building from a checkout is `go build ./cmd/rc-doctor`. It builds with Go 1.24 or newer; releases are built with the latest Go 1.26 patch release.
 
 ## Quick start
 
@@ -176,7 +176,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.24"
+          go-version: stable
       - run: go install github.com/aggarwalpulkit596/rc-doctor/cmd/rc-doctor@latest
       - run: rc-doctor check --dashboard rc-project.json --format sarif --fail-on never > rc-doctor.sarif
       - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
