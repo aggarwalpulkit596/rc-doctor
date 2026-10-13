@@ -1,0 +1,26 @@
+name: pr-labels
+
+# Every pull request carries one type label, as in RevenueCat's repositories
+# (RevenueCat/Dangerfile). The label sorts the change into the changelog.
+on:
+  pull_request:
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  type-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: exactly one type label
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          types=$(echo "$LABELS" | python3 -c 'import json,sys; print(" ".join(l for l in json.load(sys.stdin) if l in ("pr:feat","pr:fix","pr:other","pr:dependencies","pr:changelog_ignore")))')
+          count=$(echo $types | wc -w)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::add exactly one type label: pr:feat, pr:fix, pr:other, pr:dependencies or pr:changelog_ignore (found: ${types:-none})"
+            exit 1
+          fi
+          echo "type label: $types"

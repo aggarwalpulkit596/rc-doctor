@@ -1,0 +1,61 @@
+version: 2
+
+project_name: rc-doctor
+
+before:
+  hooks:
+    # Check the dependencies are intact without rewriting go.mod during a release.
+    - go mod verify
+
+builds:
+  - id: rc-doctor
+    main: ./cmd/rc-doctor
+    binary: rc-doctor
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/aggarwalpulkit596/rc-doctor/internal/buildinfo.Version={{.Version}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+# Sign checksums.txt, which hashes every archive, so one signature covers the
+# release. Signing uses the workflow's GitHub identity (keyless), no keys.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    output: true
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--yes"
+      - "--bundle=${signature}"
+      - "${artifact}"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# The release notes are CHANGELOG.latest.md, passed with --release-notes by the
+# release workflow (see RELEASING.md), not generated from commits.
+changelog:
+  disable: true
