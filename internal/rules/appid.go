@@ -9,8 +9,9 @@ import (
 func init() { Register(appID{}) }
 
 // appID checks that the app's package name or bundle ID matches an app in the
-// RevenueCat project. A mismatch usually means the code is being checked
-// against the wrong project, or the store app was never added to it.
+// RevenueCat project. RevenueCat's troubleshooting playbook: on a mismatch
+// offerings come back empty, because the app isn't recognized. It is a warning
+// because build flavors and schemes can change the identifier at build time.
 type appID struct{}
 
 func (appID) ID() string { return "app-id" }
@@ -59,8 +60,8 @@ func (r appID) Check(ctx *Context) []model.Finding {
 			Severity: model.Warning,
 			Platform: f.Platform,
 			Location: f.AppIDAt,
-			Message:  fmt.Sprintf("%q doesn't match any %s app in the RevenueCat project (configured: %s).", f.AppID, f.Platform, quoteList(configured, 3)),
-			Fix:      "Check you're pointing at the right RevenueCat project, or correct the bundle ID / package name in the app's settings in the dashboard.",
+			Message:  fmt.Sprintf("%q doesn't match any %s app in the RevenueCat project (configured: %s). On a mismatch, offerings come back empty because RevenueCat doesn't recognize the app.", f.AppID, f.Platform, quoteList(configured, 3)),
+			Fix:      "Check you're pointing at the right RevenueCat project, or correct the bundle ID / package name in the dashboard. Each build flavor with its own identifier needs its own app.",
 		})
 	}
 	return out

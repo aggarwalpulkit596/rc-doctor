@@ -38,7 +38,7 @@ func TestCollectSample(t *testing.T) {
 	if f.Platform != "android" || f.AppID != "com.example.paywall" || f.AppIDAt != at("android/app/build.gradle.kts", 11) {
 		t.Errorf("app = %s %q at %v", f.Platform, f.AppID, f.AppIDAt)
 	}
-	if want := []model.APIKey{{Value: "appl_AbCdEfGhIjKlMnOpQrSt", Location: at(dir+"App.kt", 11)}}; !reflect.DeepEqual(f.APIKeys, want) {
+	if want := []model.APIKey{{Value: "appl_AbCdEfGhIjKlMnOpQrSt", Location: at(dir+"App.kt", 11), Configured: true}}; !reflect.DeepEqual(f.APIKeys, want) {
 		t.Errorf("APIKeys = %+v, want %+v", f.APIKeys, want)
 	}
 	// The test source set and the commented-out block must not show up.

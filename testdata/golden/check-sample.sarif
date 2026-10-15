@@ -1,0 +1,186 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "rc-doctor",
+          "version": "v0.0.0-golden",
+          "informationUri": "https://github.com/aggarwalpulkit596/rc-doctor",
+          "rules": [
+            {
+              "id": "android-application-class",
+              "shortDescription": {
+                "text": "The Application subclass that configures the SDK is registered in AndroidManifest.xml"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/android-application-class.md"
+            },
+            {
+              "id": "api-key",
+              "shortDescription": {
+                "text": "No secret keys in app code, and each app uses its own platform's public SDK key"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/api-key.md"
+            },
+            {
+              "id": "app-id",
+              "shortDescription": {
+                "text": "The app's package name or bundle ID matches an app in the RevenueCat project"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/app-id.md"
+            },
+            {
+              "id": "current-offering",
+              "shortDescription": {
+                "text": "Code that reads the current offering has one marked current in the project"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/current-offering.md"
+            },
+            {
+              "id": "empty-offering",
+              "shortDescription": {
+                "text": "Offerings the code uses have packages, and every package has a product"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/empty-offering.md"
+            },
+            {
+              "id": "entitlement-products",
+              "shortDescription": {
+                "text": "Entitlements the code checks have products attached"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/entitlement-products.md"
+            },
+            {
+              "id": "hardcoded-app-user-id",
+              "shortDescription": {
+                "text": "No fixed app user IDs passed to configure or logIn"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/hardcoded-app-user-id.md"
+            },
+            {
+              "id": "play-billing-desugaring",
+              "shortDescription": {
+                "text": "Android apps below minSdk 24 enable core library desugaring for Play Billing Library 7.1+"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/play-billing-desugaring.md"
+            },
+            {
+              "id": "purchases-completed-by-app",
+              "shortDescription": {
+                "text": "Apps that complete purchases themselves acknowledge (Android) or finish (iOS) them"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/purchases-completed-by-app.md"
+            },
+            {
+              "id": "restore-purchases",
+              "shortDescription": {
+                "text": "The app offers a way to restore purchases (restorePurchases, a RevenueCat paywall, or the Customer Center)"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/restore-purchases.md"
+            },
+            {
+              "id": "test-store-key",
+              "shortDescription": {
+                "text": "Test Store API keys are only used by debug builds"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/test-store-key.md"
+            },
+            {
+              "id": "unknown-entitlement",
+              "shortDescription": {
+                "text": "Entitlement IDs used in code exist in the RevenueCat project"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/unknown-entitlement.md"
+            },
+            {
+              "id": "unknown-offering",
+              "shortDescription": {
+                "text": "Offering IDs used in code exist in the RevenueCat project"
+              },
+              "helpUri": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/unknown-offering.md"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "api-key",
+          "level": "error",
+          "message": {
+            "text": "appl_AbCd… is a public key for ios apps, but this is the android app. The SDK's first request fails with an invalid credentials error. Fix: Use the android app's public SDK key (goog_ZyXw…)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/sample/android/app/src/main/java/com/example/paywall/App.kt"
+                },
+                "region": {
+                  "startLine": 11
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unknown-entitlement",
+          "level": "error",
+          "message": {
+            "text": "Entitlement \"premum\" is used in code but doesn't exist in your RevenueCat project. Fix: Did you mean \"premium\"?"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/sample/android/app/src/main/java/com/example/paywall/Paywall.kt"
+                },
+                "region": {
+                  "startLine": 12
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unknown-offering",
+          "level": "error",
+          "message": {
+            "text": "Offering \"summer_sale\" is used in code but doesn't exist in your RevenueCat project. Fix: Create \"summer_sale\" in the RevenueCat dashboard, or use one that exists: \"default\", \"annual_promo\"."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/sample/ios/Paywall/ContentView.swift"
+                },
+                "region": {
+                  "startLine": 15
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "api-key",
+          "level": "error",
+          "message": {
+            "text": "Secret API key sk_AbCd… is in app code. Secret keys are for servers only and must never ship in an app. Fix: Use the ios app's public SDK key (appl_AbCd…). Then rotate the secret key in the RevenueCat dashboard: anyone with your code or app binary can read it."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/sample/ios/Paywall/PaywallApp.swift"
+                },
+                "region": {
+                  "startLine": 11
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

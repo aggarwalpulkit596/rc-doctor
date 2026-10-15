@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "rc-doctor",
+  "description": "Check a RevenueCat integration against the app's code and its RevenueCat project, and fix what can be fixed safely.",
+  "owner": {
+    "name": "Pulkit Aggarwal"
+  },
+  "plugins": [
+    {
+      "name": "rc-doctor",
+      "source": "./plugin",
+      "description": "Check a RevenueCat integration against the app's code and its RevenueCat project, and fix what can be fixed safely.",
+      "version": "0.1.0",
+      "category": "developer-tools",
+      "author": { "name": "Pulkit Aggarwal" },
+      "homepage": "https://github.com/aggarwalpulkit596/rc-doctor",
+      "repository": "https://github.com/aggarwalpulkit596/rc-doctor",
+      "license": "MIT",
+      "keywords": ["revenuecat", "subscriptions", "iap", "in-app-purchases", "lint", "android", "ios", "kotlin-multiplatform"]
+    }
+  ]
+}

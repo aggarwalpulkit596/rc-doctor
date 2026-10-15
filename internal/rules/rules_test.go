@@ -13,6 +13,7 @@ const (
 	androidKey = "goog_ANDROIDKEY1234567890"
 	amazonKey  = "amzn_AMAZONKEY12345678901"
 	secretKey  = "sk_SECRETKEY1234567890abcd"
+	testKey    = "test_TESTSTOREKEY123456789"
 )
 
 var prefixes = map[string]string{"appl_": "ios", "goog_": "android", "amzn_": "android"}
@@ -75,7 +76,9 @@ func TestRegistry(t *testing.T) {
 			t.Errorf("%s has no description", r.ID())
 		}
 	}
-	if got, want := strings.Join(ids, ","), "api-key,app-id,unknown-entitlement,unknown-offering"; got != want {
+	want := "android-application-class,api-key,app-id,current-offering,empty-offering,entitlement-products," +
+		"hardcoded-app-user-id,play-billing-desugaring,purchases-completed-by-app,restore-purchases,test-store-key,unknown-entitlement,unknown-offering"
+	if got := strings.Join(ids, ","); got != want {
 		t.Errorf("rules = %s, want %s", got, want)
 	}
 	if r, _ := Get("api-key"); r.NeedsDashboard() {
@@ -274,6 +277,27 @@ func TestAPIKeyPlaceholder(t *testing.T) {
 		got := run(t, "api-key", nil, iosApp(placeholder))
 		if len(got) != 1 || got[0].Severity != model.Error || !strings.Contains(got[0].Message, "placeholder") {
 			t.Errorf("%s: %+v", placeholder, got)
+		}
+	}
+}
+
+func TestAPIKeyPlaceholderInDefaultsFile(t *testing.T) {
+	for _, tc := range []struct {
+		file     string
+		severity model.Severity
+	}{
+		{"secrets.defaults.properties", model.Info},
+		{"local.defaults.properties", model.Info},
+		{"Config/Config.example.xcconfig", model.Info},
+		{"secrets.properties", model.Error},
+		{"app/src/main/java/App.kt", model.Error},
+		{"defaultsKeys.kt", model.Error},
+	} {
+		f := androidApp()
+		f.APIKeys = []model.APIKey{{Value: "aaaaaaaaaaaa", Location: loc(tc.file, 1)}}
+		got := run(t, "api-key", nil, f)
+		if len(got) != 1 || got[0].Severity != tc.severity {
+			t.Errorf("%s: got %+v, want one %s", tc.file, got, tc.severity)
 		}
 	}
 }

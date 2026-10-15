@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	iosWords     = map[string]bool{"IOS": true, "APPLE": true, "APPSTORE": true, "MACOS": true}
+	iosWords     = map[string]bool{"IOS": true, "APPLE": true, "APPSTORE": true, "MACOS": true, "TVOS": true, "WATCHOS": true, "VISIONOS": true}
 	androidWords = map[string]bool{"ANDROID": true, "GOOGLE": true, "PLAY": true, "PLAYSTORE": true, "AMAZON": true}
 )
 
@@ -29,9 +29,14 @@ func PlatformHint(line string) string {
 	return ""
 }
 
+// appleNames keeps Apple's platform names whole through the camelCase split,
+// which would read "iOS" as I, OS.
+var appleNames = strings.NewReplacer("iOS", "Ios", "macOS", "Macos", "tvOS", "Tvos", "watchOS", "Watchos", "visionOS", "Visionos")
+
 // words splits on anything that isn't a letter or digit and on camelCase
 // boundaries, and upper-cases the parts: "rcIosKey_v2" -> RC, IOS, KEY, V2.
 func words(s string) []string {
+	s = appleNames.Replace(s)
 	var out []string
 	var cur []rune
 	flush := func() {

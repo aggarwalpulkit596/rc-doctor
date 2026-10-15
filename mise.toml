@@ -1,0 +1,6 @@
+[tools]
+# Pinned to what CI uses, so `make check` lints locally and `make snapshot`
+# builds release archives the way the release workflow does.
+go = "1.26"
+golangci-lint = "2.12.2"
+goreleaser = "2.18.3"

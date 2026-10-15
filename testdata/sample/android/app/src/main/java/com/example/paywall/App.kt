@@ -11,3 +11,6 @@ class App : Application() {
         Purchases.configure(PurchasesConfiguration.Builder(this, "appl_AbCdEfGhIjKlMnOpQrSt").build())
     }
 }
+
+fun restorePurchases(callback: com.revenuecat.purchases.interfaces.ReceiveCustomerInfoCallback) =
+    Purchases.sharedInstance.restorePurchases(callback)

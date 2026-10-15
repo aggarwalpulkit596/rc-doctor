@@ -12,3 +12,5 @@ fun configureBilling() {
 
 fun isPremium(info: CustomerInfo): Boolean =
     info.entitlements[BillingConfig.RC_ENTITLEMENT]?.isActive == true
+
+suspend fun restore() = Purchases.sharedInstance.awaitRestore()

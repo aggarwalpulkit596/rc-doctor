@@ -129,9 +129,9 @@ func writeAtomic(path, content string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name()) // no-op after a successful rename
+	defer func() { _ = os.Remove(tmp.Name()) }() // a no-op after a successful rename
 	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
+		_ = tmp.Close() // the write error is the one to report
 		return err
 	}
 	if err := tmp.Close(); err != nil {

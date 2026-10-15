@@ -69,7 +69,7 @@ func TestRunOffline(t *testing.T) {
 	if got, want := rulesOf(res), "android:api-key ios:api-key"; got != want {
 		t.Errorf("findings = %s, want %s", got, want)
 	}
-	if len(res.Skipped) != 3 || res.Dashboard != "offline" || len(res.Notes) != 1 {
+	if len(res.Skipped) != 6 || res.Dashboard != "offline" || len(res.Notes) != 1 {
 		t.Errorf("skipped = %v, dashboard = %s, notes = %v", res.Skipped, res.Dashboard, res.Notes)
 	}
 }
@@ -139,7 +139,7 @@ func TestKMPSupersedesNativeModulesAndReportsSharedCodeOnce(t *testing.T) {
 		t.Errorf("findings = %s", got)
 	}
 	for _, f := range res.Facts {
-		if f.Platform == "ios" && strings.Join(f.KeyPrefixes, ",") != "appl_" {
+		if f.Platform == "ios" && strings.Join(f.KeyPrefixes, ",") != "appl_,mac_" {
 			t.Errorf("the iOS app must be checked with iOS prefixes, got %v", f.KeyPrefixes)
 		}
 	}

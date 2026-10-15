@@ -1,0 +1,37 @@
+rc-doctor checked android (com.example.legacy)
+against RevenueCat project: snapshot:testdata/dashboard-legacy.json
+
+android
+  warning play-billing-desugaring  testdata/android-legacy/app/build.gradle:12
+          minSdk 21 without core library desugaring. The Play Billing Library in RevenueCat's Android SDK 8.10.8 and later uses Java 8 types that some devices below Android 7.0 (API 24) lack, and the app can crash there with NoClassDefFoundError.
+          fix: Enable core library desugaring (isCoreLibraryDesugaringEnabled = true in compileOptions, plus the com.android.tools:desugar_jdk_libs dependency), or raise minSdk to 24.
+  warning test-store-key  testdata/android-legacy/app/build.gradle:15
+          Test Store API key test_LeGa… is the only RevenueCat key rc-doctor found for this app. A release build configured with a Test Store key crashes on launch, and App Review rejects it.
+          fix: Use the Test Store key in debug builds only (#if DEBUG, BuildConfig.DEBUG, a debug build type or a debug source set) and the store's public SDK key in release builds (`rc apps keys <app-id>`). If only debug builds reach this line, add `rc-doctor:ignore test-store-key -- debug only` to it.
+  error   android-application-class  testdata/android-legacy/app/src/main/java/com/example/legacy/LegacyApp.kt:8
+          LegacyApp configures RevenueCat, but app/src/main/AndroidManifest.xml doesn't register it as android:name on <application>, so Android never creates it and Purchases.configure never runs.
+          fix: Add android:name="com.example.legacy.LegacyApp" to the <application> element in app/src/main/AndroidManifest.xml.  [suggested fix]
+  warning restore-purchases  testdata/android-legacy/app/src/main/java/com/example/legacy/LegacyApp.kt:11
+          The android app never offers to restore purchases: no restorePurchases call, RevenueCat paywall or Customer Center was found. Users who reinstall or switch devices can't get their purchases back without it.
+          fix: Add a "Restore purchases" button that calls restorePurchases, on the paywall or in settings, or show a RevenueCat paywall or the Customer Center, which include one.
+  error   hardcoded-app-user-id  testdata/android-legacy/app/src/main/java/com/example/legacy/LegacyApp.kt:13
+          The fixed app user ID "demo_user" is passed to the SDK. Every user who runs this code becomes the same RevenueCat customer and shares its purchases.
+          fix: Pass your signed-in user's ID, or leave it out so RevenueCat creates an anonymous ID per install.
+  error   purchases-completed-by-app  testdata/android-legacy/app/src/main/java/com/example/legacy/LegacyApp.kt:14
+          Purchases are completed by the app (PurchasesAreCompletedBy.MY_APP), but no acknowledgePurchase or consumeAsync call was found. Google Play refunds purchases that aren't acknowledged within 3 days.
+          fix: Acknowledge each purchase with BillingClient.acknowledgePurchase (or consume consumables) once access is granted, or let RevenueCat complete purchases, the default.
+  error   entitlement-products  testdata/android-legacy/app/src/main/java/com/example/legacy/MainActivity.kt:8
+          Entitlement "pro" has no products attached, so no purchase can unlock it.
+          fix: Attach the products that should grant it, in the dashboard or with `rc entitlements attach <entitlement-id> <product-id>`.
+  error   current-offering  testdata/android-legacy/app/src/main/java/com/example/legacy/MainActivity.kt:11
+          The code reads the current offering, but no offering in your RevenueCat project is marked current, so it is null and the paywall has nothing to show.
+          fix: Mark an offering as current in the dashboard, or run `rc offerings set-current <offering-id>`.
+  error   empty-offering  testdata/android-legacy/app/src/main/java/com/example/legacy/MainActivity.kt:11
+          Offering "seasonal" has no packages, so its availablePackages list is empty and there is nothing to buy.
+          fix: Add packages to the offering and attach a product to each, in the dashboard or with `rc packages create` and `rc packages attach`.
+  error   empty-offering  testdata/android-legacy/app/src/main/java/com/example/legacy/MainActivity.kt:13
+          Package "$rc_monthly" in offering "default" has no product attached, so there is nothing to buy in it.
+          fix: Attach a product to the package, in the dashboard or with `rc packages attach <package-id> <product-id>`.
+
+7 errors, 3 warnings.
+Automatic fixes available: 0 safe, 1 suggested. Preview them by running `rc-doctor review` with the same arguments.

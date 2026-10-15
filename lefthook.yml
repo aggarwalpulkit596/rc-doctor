@@ -1,0 +1,21 @@
+pre-commit:
+  commands:
+    checks:
+      run: make check
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        msg=$(head -1 {1})
+        pattern='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?(!)?: .{1,100}'
+        if ! echo "$msg" | grep -qE "$pattern"; then
+          echo "Commit messages follow Conventional Commits:"
+          echo "  <type>(<scope>): <summary>"
+          echo ""
+          echo "Types: feat fix docs style refactor perf test chore ci build revert"
+          echo "Example: feat(kmp): route shared keys by name"
+          echo ""
+          echo "Got: $msg"
+          exit 1
+        fi

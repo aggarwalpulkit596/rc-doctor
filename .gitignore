@@ -1,3 +1,5 @@
 /rc-doctor
 /dist/
-*.sarif
+/coverage.out
+# Reports written while trying the tool; testdata/golden keeps its .sarif.
+/*.sarif

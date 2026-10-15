@@ -1,0 +1,16 @@
+rc-doctor checked android (com.example.paywall), ios (com.example.paywall)
+offline: no RevenueCat project loaded
+
+android
+  error   api-key  testdata/sample/android/app/src/main/java/com/example/paywall/App.kt:11
+          appl_AbCd… is a public key for ios apps, but this is the android app. The SDK's first request fails with an invalid credentials error.
+          fix: Replace it with the android app's public SDK key from the API keys page of the RevenueCat dashboard (or `rc apps keys <app-id>`).
+
+ios
+  error   api-key  testdata/sample/ios/Paywall/PaywallApp.swift:11
+          Secret API key sk_AbCd… is in app code. Secret keys are for servers only and must never ship in an app.
+          fix: Replace it with the ios app's public SDK key from the API keys page of the RevenueCat dashboard (or `rc apps keys <app-id>`). Then rotate the secret key in the RevenueCat dashboard: anyone with your code or app binary can read it.
+
+skipped app-id, current-offering, empty-offering, entitlement-products, unknown-entitlement, unknown-offering (needs your RevenueCat project: use --dashboard rc, or a snapshot file)
+
+2 errors, 0 warnings.

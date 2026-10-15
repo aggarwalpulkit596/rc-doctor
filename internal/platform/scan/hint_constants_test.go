@@ -18,6 +18,9 @@ func TestPlatformHint(t *testing.T) {
 		{"RC_KEY=", ""},
 		{"IOS_AND_ANDROID_KEY=", ""}, // names both: no hint
 		{"RATIOS_BIOS=", ""},         // not words
+		{"let iOSKey =", "ios"},      // Apple's spelling survives the camelCase split
+		{"#if os(macOS)", "ios"},
+		{"if (platform is Platform.Android) {", "android"},
 	} {
 		if got := PlatformHint(tc.line); got != tc.want {
 			t.Errorf("PlatformHint(%q) = %q, want %q", tc.line, got, tc.want)
@@ -59,6 +62,9 @@ func TestKeyIdentsResolvePlaceholdersAtTheirDefinition(t *testing.T) {
 		"app/App.kt":          "Purchases.configure(PurchasesConfiguration.Builder(this, Constants.GOOGLE_API_KEY).build())\n",
 		"ios/Constants.swift": "static let apiKey = \"REVENUECAT_API_KEY\"\n",
 		"ios/App.swift":       "Purchases.configure(with: Configuration.Builder(withAPIKey: Constants.apiKey).build())\n",
+		// The KMP SDK's builder and configure DSL take the key alone.
+		"shared/Keys.kt":    "const val RC_KEY = \"rc_placeholder\"\nconst val RC_DSL_KEY = \"rc_dsl_placeholder\"\n",
+		"shared/Billing.kt": "Purchases.configure(PurchasesConfiguration.Builder(RC_KEY).build())\nPurchases.configure(apiKey = RC_DSL_KEY) { }\n",
 	})
 	res, err := Source(root, Spec{Sets: []Patterns{{Extensions: []string{".kt", ".swift"}, KeyIdents: KeyIdents}}})
 	if err != nil {
@@ -68,7 +74,8 @@ func TestKeyIdentsResolvePlaceholdersAtTheirDefinition(t *testing.T) {
 	for i, k := range res.APIKeys {
 		got = append(got, k.Value+"@"+k.Location.String()+"/"+res.KeyHints[i])
 	}
-	want := []string{"googl_api_key@app/Constants.kt:2/android", "REVENUECAT_API_KEY@ios/Constants.swift:1/"}
+	want := []string{"googl_api_key@app/Constants.kt:2/android", "REVENUECAT_API_KEY@ios/Constants.swift:1/",
+		"rc_placeholder@shared/Keys.kt:1/", "rc_dsl_placeholder@shared/Keys.kt:2/"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("keys = %q, want %q", got, want)
 	}

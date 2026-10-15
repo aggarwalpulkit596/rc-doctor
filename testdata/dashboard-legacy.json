@@ -1,0 +1,16 @@
+{
+  "entitlements": ["pro"],
+  "offerings": ["default", "seasonal"],
+  "apps": [
+    {"id": "app_android", "platform": "android", "app_id": "com.example.legacy", "public_keys": ["goog_LegacyKey1234567890ab"]}
+  ],
+  "catalog": {
+    "current_offering": "",
+    "packages": {
+      "default": [{"id": "$rc_monthly", "products": []}],
+      "seasonal": []
+    },
+    "entitlement_products": {"pro": []},
+    "product_types": {"legacy_pro_monthly": "subscription"}
+  }
+}

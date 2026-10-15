@@ -1,0 +1,36 @@
+rc-doctor checked android (com.example.paywall), ios (com.example.paywall)
+against RevenueCat project: snapshot:testdata/dashboard.json
+
+android
+  error   api-key  testdata/sample/android/app/src/main/java/com/example/paywall/App.kt:11
+          appl_AbCd… is a public key for ios apps, but this is the android app. The SDK's first request fails with an invalid credentials error.
+          fix: Use the android app's public SDK key (goog_ZyXw…).  [safe fix]
+  error   unknown-entitlement  testdata/sample/android/app/src/main/java/com/example/paywall/Paywall.kt:12
+          Entitlement "premum" is used in code but doesn't exist in your RevenueCat project.
+          fix: Did you mean "premium"?  [suggested fix]
+
+ios
+  error   unknown-offering  testdata/sample/ios/Paywall/ContentView.swift:15
+          Offering "summer_sale" is used in code but doesn't exist in your RevenueCat project.
+          fix: Create "summer_sale" in the RevenueCat dashboard, or use one that exists: "default", "annual_promo".
+  error   api-key  testdata/sample/ios/Paywall/PaywallApp.swift:11
+          Secret API key sk_AbCd… is in app code. Secret keys are for servers only and must never ship in an app.
+          fix: Use the ios app's public SDK key (appl_AbCd…). Then rotate the secret key in the RevenueCat dashboard: anyone with your code or app binary can read it.  [suggested fix]
+
+4 errors, 0 warnings.
+
+Proposed fixes (1 safe, 2 suggested):
+  [safe] testdata/sample/android/app/src/main/java/com/example/paywall/App.kt:11
+      Use the android app's public SDK key (goog_ZyXw…).
+      - Purchases.configure(PurchasesConfiguration.Builder(this, "appl_AbCd…").build())
+      + Purchases.configure(PurchasesConfiguration.Builder(this, "goog_ZyXw…").build())
+  [suggested] testdata/sample/android/app/src/main/java/com/example/paywall/Paywall.kt:12
+      Change entitlement "premum" to "premium".
+      - info.entitlements["premum"]?.isActive == true
+      + info.entitlements["premium"]?.isActive == true
+  [suggested] testdata/sample/ios/Paywall/PaywallApp.swift:11
+      Use the ios app's public SDK key (appl_AbCd…). Then rotate the secret key in the RevenueCat dashboard: anyone with your code or app binary can read it.
+      - let apiKey = "sk_AbCd…"
+      + let apiKey = "appl_AbCd…"
+
+Nothing was changed. Apply the safe fixes with --fix; add --suggested to apply the suggested ones too.

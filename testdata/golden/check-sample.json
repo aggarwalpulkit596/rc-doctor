@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "tool": "rc-doctor",
+  "version": "v0.0.0-golden",
+  "root": "$REPO/testdata/sample",
+  "apps": [
+    {
+      "platform": "android",
+      "app_id": "com.example.paywall"
+    },
+    {
+      "platform": "ios",
+      "app_id": "com.example.paywall"
+    }
+  ],
+  "dashboard": "snapshot:testdata/dashboard.json",
+  "summary": {
+    "error": 4,
+    "info": 0,
+    "warning": 0
+  },
+  "findings": [
+    {
+      "rule": "api-key",
+      "severity": "error",
+      "platform": "android",
+      "file": "android/app/src/main/java/com/example/paywall/App.kt",
+      "line": 11,
+      "message": "appl_AbCd… is a public key for ios apps, but this is the android app. The SDK's first request fails with an invalid credentials error.",
+      "fix": "Use the android app's public SDK key (goog_ZyXw…).",
+      "fixable": "safe",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/api-key.md"
+    },
+    {
+      "rule": "unknown-entitlement",
+      "severity": "error",
+      "platform": "android",
+      "file": "android/app/src/main/java/com/example/paywall/Paywall.kt",
+      "line": 12,
+      "message": "Entitlement \"premum\" is used in code but doesn't exist in your RevenueCat project.",
+      "fix": "Did you mean \"premium\"?",
+      "fixable": "suggested",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/unknown-entitlement.md"
+    },
+    {
+      "rule": "unknown-offering",
+      "severity": "error",
+      "platform": "ios",
+      "file": "ios/Paywall/ContentView.swift",
+      "line": 15,
+      "message": "Offering \"summer_sale\" is used in code but doesn't exist in your RevenueCat project.",
+      "fix": "Create \"summer_sale\" in the RevenueCat dashboard, or use one that exists: \"default\", \"annual_promo\".",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/unknown-offering.md"
+    },
+    {
+      "rule": "api-key",
+      "severity": "error",
+      "platform": "ios",
+      "file": "ios/Paywall/PaywallApp.swift",
+      "line": 11,
+      "message": "Secret API key sk_AbCd… is in app code. Secret keys are for servers only and must never ship in an app.",
+      "fix": "Use the ios app's public SDK key (appl_AbCd…). Then rotate the secret key in the RevenueCat dashboard: anyone with your code or app binary can read it.",
+      "fixable": "suggested",
+      "docs": "https://github.com/aggarwalpulkit596/rc-doctor/blob/main/docs/rules/api-key.md"
+    }
+  ],
+  "suppressed": 0
+}

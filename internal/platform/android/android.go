@@ -22,6 +22,10 @@ var (
 
 	applicationID = regexp.MustCompile(`\bapplicationId\s*=?\s*["']([^"']+)["']`)
 
+	// FinishesPurchase is the app acknowledging or consuming a Play purchase
+	// itself, which PurchasesAreCompletedBy.MY_APP makes its job.
+	FinishesPurchase = regexp.MustCompile(`\b(?:acknowledgePurchase|consumeAsync|consumePurchase)\s*\(`)
+
 	spec = scan.Spec{
 		// Test source sets (test, testDebug, androidTest, commonTest, jvmTest, ...)
 		// and Kotlin Multiplatform source sets that only compile for Apple targets.
@@ -37,6 +41,9 @@ var (
 				EntitlementIdents: scan.EntitlementIdents,
 				OfferingIdents:    scan.OfferingIdents,
 				KeyIdents:         scan.KeyIdents,
+				AppUserIDs:        scan.AppUserIDLiterals,
+				AppUserIDIdents:   scan.AppUserIDIdents,
+				Signals:           scan.WithSignals(model.SignalFinishesPurchase, FinishesPurchase),
 			},
 			{
 				// Keys kept out of code: buildConfigField and resValue in Gradle
@@ -50,15 +57,20 @@ var (
 
 func (Android) Name() string { return "android" }
 
-// KeyPrefixes: Google Play and Amazon Appstore apps both run the Android SDK.
-// TODO(verify): confirm the prefixes against RevenueCat's API keys documentation.
-func (Android) KeyPrefixes() []string { return []string{"goog_", "amzn_"} }
+// KeyPrefixes: the Android SDK runs Google Play, Amazon Appstore and Galaxy
+// Store apps. The prefixes are the ones the SDK itself checks
+// (APIKeyValidator.kt in RevenueCat/purchases-android). Test Store keys
+// (test_) work on every platform, so no platform claims them.
+func (Android) KeyPrefixes() []string { return []string{"goog_", "amzn_", "galx_"} }
 
 func (Android) Detect(root string) bool {
 	return scan.Contains(root, buildFiles, sdkGroup)
 }
 
 func (Android) Collect(root string) ([]model.Facts, error) {
+	spec := spec
+	// A JVM server or tool next to the app isn't part of it.
+	spec.Exclude = scan.ExcludeDirs(spec.Exclude, scan.JVMModules(root, spec.Exclude))
 	src, err := scan.Source(root, spec)
 	if err != nil {
 		return nil, err
@@ -70,6 +82,9 @@ func (Android) Collect(root string) ([]model.Facts, error) {
 		ConfigureAt:  src.ConfigureAt,
 		Entitlements: src.Entitlements,
 		Offerings:    src.Offerings,
+		AppUserIDs:   src.AppUserIDs,
+		Signals:      src.Signals,
+		Build:        BuildSettings(root, spec.Exclude, src.ConfigureAt),
 	}
 	if m, ok := ApplicationID(root); ok {
 		f.AppID, f.AppIDAt = m.Value, m.Location

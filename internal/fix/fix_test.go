@@ -84,11 +84,11 @@ func TestSkipsStaleOrInvalidEdits(t *testing.T) {
 
 func TestSeveralEditsOnOneLineAndCRLF(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "a.kt")
-	if err := os.WriteFile(path, []byte("first\r\nent[\"premum\"] || off[\"defualt\"]\r\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("first\r\nent[\"premum\"] || off[\"defualt\"]\r\n"), 0o644); err != nil { //nolint:misspell // the typos are the fixture
 		t.Fatal(err)
 	}
 	res, err := Apply([]model.Edit{
-		edit(path, 2, `"defualt"`, `"default"`, model.Suggested),
+		edit(path, 2, `"defualt"`, `"default"`, model.Suggested), //nolint:misspell // the typo being fixed
 		edit(path, 2, `"premum"`, `"premium"`, model.Suggested),
 	})
 	if err != nil {
